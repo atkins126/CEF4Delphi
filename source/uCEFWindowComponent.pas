@@ -1,40 +1,3 @@
-// ************************************************************************
-// ***************************** CEF4Delphi *******************************
-// ************************************************************************
-//
-// CEF4Delphi is based on DCEF3 which uses CEF to embed a chromium-based
-// browser in Delphi applications.
-//
-// The original license of DCEF3 still applies to CEF4Delphi.
-//
-// For more information about CEF4Delphi visit :
-//         https://www.briskbard.com/index.php?lang=en&pageid=cef
-//
-//        Copyright © 2023 Salvador Diaz Fau. All rights reserved.
-//
-// ************************************************************************
-// ************ vvvv Original license and comments below vvvv *************
-// ************************************************************************
-(*
- *                       Delphi Chromium Embedded 3
- *
- * Usage allowed under the restrictions of the Lesser GNU General Public License
- * or alternatively the restrictions of the Mozilla Public License 1.1
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License for
- * the specific language governing rights and limitations under the License.
- *
- * Unit owner : Henri Gourvest <hgourvest@gmail.com>
- * Web site   : http://www.progdigy.com
- * Repository : http://code.google.com/p/delphichromiumembedded/
- * Group      : http://groups.google.com/group/delphichromiumembedded
- *
- * Embarcadero Technologies, Inc is not permitted to use or redistribute
- * this source code without explicit permission.
- *
- *)
-
 unit uCEFWindowComponent;
 
 {$IFDEF FPC}
@@ -73,6 +36,7 @@ type
       FOnWindowActivationChanged    : TOnWindowActivationChangedEvent;
       FOnWindowBoundsChanged        : TOnWindowBoundsChangedEvent;
       FOnGetParentWindow            : TOnGetParentWindowEvent;
+      FOnIsWindowModalDialog        : TOnIsWindowModalDialogEvent;
       FOnGetInitialBounds           : TOnGetInitialBoundsEvent;
       FOnGetInitialShowState        : TOnGetInitialShowStateEvent;
       FOnIsFrameless                : TOnIsFramelessEvent;
@@ -119,6 +83,7 @@ type
       procedure doOnWindowActivationChanged(const window_: ICefWindow; active: boolean);
       procedure doOnWindowBoundsChanged(const window_: ICefWindow; const new_bounds: TCefRect);
       procedure doOnGetParentWindow(const window_: ICefWindow; var is_menu, can_activate_menu: boolean; var aResult : ICefWindow);
+      procedure doOnIsWindowModalDialog(const window_: ICefWindow; var aResult : boolean);
       procedure doOnGetInitialBounds(const window_: ICefWindow; var aResult : TCefRect);
       procedure doOnGetInitialShowState(const window_: ICefWindow; var aResult : TCefShowState);
       procedure doOnIsFrameless(const window_: ICefWindow; var aResult : boolean);
@@ -178,6 +143,7 @@ type
       property OnWindowActivationChanged    : TOnWindowActivationChangedEvent    read FOnWindowActivationChanged    write FOnWindowActivationChanged;
       property OnWindowBoundsChanged        : TOnWindowBoundsChangedEvent        read FOnWindowBoundsChanged        write FOnWindowBoundsChanged;
       property OnGetParentWindow            : TOnGetParentWindowEvent            read FOnGetParentWindow            write FOnGetParentWindow;
+      property OnIsWindowModalDialog        : TOnIsWindowModalDialogEvent        read FOnIsWindowModalDialog        write FOnIsWindowModalDialog;
       property OnGetInitialBounds           : TOnGetInitialBoundsEvent           read FOnGetInitialBounds           write FOnGetInitialBounds;
       property OnGetInitialShowState        : TOnGetInitialShowStateEvent        read FOnGetInitialShowState        write FOnGetInitialShowState;
       property OnIsFrameless                : TOnIsFramelessEvent                read FOnIsFrameless                write FOnIsFrameless;
@@ -240,6 +206,7 @@ begin
   FOnWindowActivationChanged    := nil;
   FOnWindowBoundsChanged        := nil;
   FOnGetParentWindow            := nil;
+  FOnIsWindowModalDialog        := nil;
   FOnGetInitialBounds           := nil;
   FOnGetInitialShowState        := nil;
   FOnIsFrameless                := nil;
@@ -346,6 +313,12 @@ procedure TCEFWindowComponent.doOnGetParentWindow(const window_: ICefWindow; var
 begin
   if assigned(FOnGetParentWindow) then
     FOnGetParentWindow(self, window_, is_menu, can_activate_menu, aResult);
+end;
+
+procedure TCEFWindowComponent.doOnIsWindowModalDialog(const window_: ICefWindow; var aResult : boolean);
+begin
+  if assigned(FOnIsWindowModalDialog) then
+    FOnIsWindowModalDialog(self, window_, aResult);
 end;
 
 procedure TCEFWindowComponent.doOnGetInitialBounds(const window_: ICefWindow; var aResult : TCefRect);
