@@ -78,6 +78,7 @@ type
       FLocale                            : ustring;
       FLogFile                           : ustring;
       FLogSeverity                       : TCefLogSeverity;
+      FLogItems                          : TCefLogItems;
       FJavaScriptFlags                   : ustring;
       FResourcesDirPath                  : ustring;
       FLocalesDirPath                    : ustring;
@@ -89,6 +90,7 @@ type
       FAcceptLanguageList                : ustring;
       FCookieableSchemesList             : ustring;
       FCookieableSchemesExcludeDefaults  : boolean;
+      FChromePolicyId                    : ustring;
 
       // Fields used to set command line switches
       FSingleProcess                     : boolean;
@@ -151,6 +153,7 @@ type
       FNetLogCaptureMode                 : TCefNetLogCaptureMode;
       FRemoteAllowOrigins                : ustring;
       FAutoAcceptCamAndMicCapture        : boolean;
+      FUIColorMode                       : TCefUIColorMode;
 
 
       // Fields used during the CEF initialization
@@ -599,6 +602,13 @@ type
       /// </summary>
       property LogSeverity                       : TCefLogSeverity                     read FLogSeverity                       write FLogSeverity;
       /// <summary>
+      /// The log items prepended to each log line. If not set the default log items
+      /// will be used. Also configurable using the "log-items" command-line switch
+      /// with a value of "none" for no log items, or a comma-delimited list of
+      /// values "pid", "tid", "timestamp" or "tickcount" for custom log items.
+      /// </summary>
+      property LogItems                          : TCefLogItems                        read FLogItems                          write FLogItems;
+      /// <summary>
       /// Custom flags that will be used when initializing the V8 JavaScript engine.
       /// The consequences of using custom flags may not be well tested. Also
       /// configurable using the "js-flags" command-line switch.
@@ -660,11 +670,10 @@ type
       property BackgroundColor                   : TCefColor                           read FBackgroundColor                   write FBackgroundColor;
       /// <summary>
       /// Comma delimited ordered list of language codes without any whitespace that
-      /// will be used in the "Accept-Language" HTTP header. May be overridden on a
-      /// per-browser basis using the TCefBrowserSettings.accept_language_list value.
-      /// If both values are empty then "en-US,en" will be used. Can be overridden
-      /// for individual ICefRequestContext instances via the
-      /// TCefRequestContextSettings.accept_language_list value.
+      /// will be used in the "Accept-Language" HTTP request header and
+      /// "navigator.language" JS attribute. Can be overridden for individual
+      /// ICefRequestContext instances via the
+      /// TCefRequestContextSettingsCefRequestContextSettings.accept_language_list value.
       /// </summary>
       property AcceptLanguageList                : ustring                             read FAcceptLanguageList                write FAcceptLanguageList;
       /// <summary>
@@ -683,6 +692,19 @@ type
       /// See the CookieableSchemesList property.
       /// </summary>
       property CookieableSchemesExcludeDefaults  : boolean                             read FCookieableSchemesExcludeDefaults  write FCookieableSchemesExcludeDefaults;
+      /// <summary>
+      /// <para>Specify an ID to enable Chrome policy management via Platform and OS-user
+      /// policies. On Windows, this is a registry key like
+      /// "SOFTWARE\\Policies\\Google\\Chrome". On MacOS, this is a bundle ID like
+      /// "com.google.Chrome". On Linux, this is an absolute directory path like
+      /// "/etc/opt/chrome/policies". Only supported with the Chrome runtime. See
+      /// https://support.google.com/chrome/a/answer/9037717 for details.</para>
+      /// <para>Chrome Browser Cloud Management integration, when enabled via the
+      /// "enable-chrome-browser-cloud-management" command-line flag, will also use
+      /// the specified ID. See https://support.google.com/chrome/a/answer/9116814
+      /// for details.</para>
+      /// </summary>
+      property ChromePolicyId                    : ustring                             read FChromePolicyId                    write FChromePolicyId;
       /// <summary>
       /// Runs the renderer and plugins in the same process as the browser.
       /// </summary>
@@ -1153,6 +1175,13 @@ type
       /// <para><see href="https://peter.sh/experiments/chromium-command-line-switches/">Uses the following command line switch: --auto-accept-camera-and-microphone-capture</see></para>
       /// </remarks>
       property AutoAcceptCamAndMicCapture        : boolean                             read FAutoAcceptCamAndMicCapture        write FAutoAcceptCamAndMicCapture;
+      /// <summary>
+      /// Forces light or dark mode in UI for platforms that support it.
+      /// </summary>
+      /// <remarks>
+      /// <para><see href="https://peter.sh/experiments/chromium-command-line-switches/">Uses the following command line switches: --force-dark-mode --force-light-mode</see></para>
+      /// </remarks>
+      property UIColorMode                       : TCefUIColorMode                     read FUIColorMode                       write FUIColorMode;
       /// <summary>
       /// Ignores certificate-related errors.
       /// </summary>
@@ -1699,6 +1728,7 @@ begin
   FLocale                            := '';
   FLogFile                           := '';
   FLogSeverity                       := LOGSEVERITY_DISABLE;
+  FLogItems                          := LOG_ITEMS_DEFAULT;
   FJavaScriptFlags                   := '';
   FResourcesDirPath                  := '';
   FLocalesDirPath                    := '';
@@ -1710,6 +1740,7 @@ begin
   FAcceptLanguageList                := '';
   FCookieableSchemesList             := '';
   FCookieableSchemesExcludeDefaults  := False;
+  FChromePolicyId                    := '';
 
   // Fields used to set command line switches
   FSingleProcess                     := False;
@@ -1772,6 +1803,7 @@ begin
   FNetLogCaptureMode                 := nlcmDefault;
   FRemoteAllowOrigins                := '';
   FAutoAcceptCamAndMicCapture        := False;
+  FUIColorMode                       := uicmSystemDefault;
 
   // Fields used during the CEF initialization
   FWindowsSandboxInfo                := nil;
@@ -2645,6 +2677,7 @@ begin
   aSettings.locale                                  := CefString(FLocale);
   aSettings.log_file                                := CefString(FLogFile);
   aSettings.log_severity                            := FLogSeverity;
+  aSettings.log_items                               := FLogItems;
   aSettings.javascript_flags                        := CefString(FJavaScriptFlags);
   aSettings.resources_dir_path                      := CefString(ResourcesDirPath);
   aSettings.locales_dir_path                        := CefString(LocalesDirPath);
@@ -2655,6 +2688,7 @@ begin
   aSettings.accept_language_list                    := CefString(FAcceptLanguageList);
   aSettings.cookieable_schemes_list                 := CefString(FCookieableSchemesList);
   aSettings.cookieable_schemes_exclude_defaults     := Ord(FCookieableSchemesExcludeDefaults);
+  aSettings.chrome_policy_id                        := CefString(FChromePolicyId);
 end;
 
 function TCefApplicationCore.InitializeLibrary(const aApp : ICefApp) : boolean;
@@ -3194,6 +3228,11 @@ begin
 
   if FAutoAcceptCamAndMicCapture then
     ReplaceSwitch(aKeys, aValues, '--auto-accept-camera-and-microphone-capture');
+
+  case FUIColorMode of
+    uicmForceDark  : ReplaceSwitch(aKeys, aValues, '--force-dark-mode');
+    uicmForceLight : ReplaceSwitch(aKeys, aValues, '--force-light-mode');
+  end;
 
   if FNetLogEnabled then
     begin

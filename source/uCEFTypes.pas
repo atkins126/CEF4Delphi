@@ -371,6 +371,7 @@ type
 
   /// <summary>
   /// Supported error code values.
+  /// <code>
   /// Ranges:
   ///     0- 99 System related errors
   ///   100-199 Connection related errors
@@ -381,6 +382,7 @@ type
   ///   600-699 FTP errors
   ///   700-799 Certificate manager errors
   ///   800-899 DNS resolver errors
+  /// </code>
   /// </summary>
   /// <remarks>
   /// <para>See the uCEFConstants unit for all possible values.</para>
@@ -701,6 +703,15 @@ type
   /// </remarks>
   TCefMenuId                       = type Integer;
 
+  /// <summary>
+  /// Log items prepended to each log line.
+  /// </summary>
+  /// <remarks>
+  /// <para>See the uCEFConstants unit for all possible values.</para>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types.h">CEF source file: /include/internal/cef_types.h (cef_log_items_t)</see></para>
+  /// </remarks>
+  TCefLogItems                     = type Cardinal;
+
 {$IFDEF FPC}
   NativeInt   = PtrInt;
   NativeUInt  = PtrUInt;
@@ -925,6 +936,23 @@ type
                           asErrorExecutingProcess);
 
   /// <summary>
+  /// Color mode in UI for platforms that support it.
+  /// </summary>
+  TCefUIColorMode = (
+    /// <summary>
+    /// System default.
+    /// </summary>
+    uicmSystemDefault,
+    /// <summary>
+    /// Forces light color mode in UI for platforms that support it.
+    /// </summary>
+    uicmForceLight,
+    /// <summary>
+    /// Forces dark color mode in UI for platforms that support it.
+    /// </summary>
+    uicmForceDark);
+
+  /// <summary>
   /// Supported proxy schemes in Chromium.
   /// </summary>
   TCefProxyScheme = (psHTTP, psSOCKS4, psSOCKS5);
@@ -947,17 +975,41 @@ type
   /// Autoplay policy types used by TCefApplicationCore.AutoplayPolicy. See the --autoplay-policy switch.
   /// </summary>
   TCefAutoplayPolicy = (appDefault,
+                        /// <summary>
+                        /// Autoplay policy that requires a document user activation.
+                        /// </summary>
                         appDocumentUserActivationRequired,
+                        /// <summary>
+                        /// Autoplay policy that does not require any user gesture.
+                        /// </summary>
                         appNoUserGestureRequired,
+                        /// <summary>
+                        /// Autoplay policy to require a user gesture in order to play.
+                        /// </summary>
                         appUserGestureRequired);
 
   /// <summary>
   /// WebRTC handling policy types used by TChromiumCore.WebRTCIPHandlingPolicy.
   /// </summary>
   TCefWebRTCHandlingPolicy = (
+    /// <summary>
+    /// WebRTC will use all available interfaces when searching for the best path.
+    /// </summary>
     hpDefault,
+    /// <summary>
+    /// WebRTC will only use the interface connecting to the public Internet,
+    /// but may connect using private IP addresses.
+    /// </summary>
     hpDefaultPublicAndPrivateInterfaces,
+    /// <summary>
+    /// WebRTC will only use the interface connecting to the public Internet,
+    /// and will not connect using private IP addresses.
+    /// </summary>
     hpDefaultPublicInterfaceOnly,
+    /// <summary>
+    /// WebRTC will use TCP on the public-facing interface, and will only use
+    /// UDP if supported by a configured proxy.
+    /// </summary>
     hpDisableNonProxiedUDP
   );
 
@@ -971,27 +1023,30 @@ type
   /// </remarks>
   TCefNetLogCaptureMode = (
     /// <summary>
-    /// Default logging level, which is expected to be light-weight and
-    /// does best-effort stripping of privacy/security sensitive data.
-    ///
+    /// <para>Default logging level, which is expected to be light-weight and
+    /// does best-effort stripping of privacy/security sensitive data.</para>
+    /// <code>
     ///  * Includes most HTTP request/response headers, but strips cookies and
     ///    auth.
     ///  * Does not include the full bytes read/written to sockets.
+    /// </code>
     /// </summary>
     nlcmDefault,
     /// <summary>
-    /// Logging level that includes everything from kDefault, plus sensitive data
-    /// that it may have strippped.
-    ///
+    /// <para>Logging level that includes everything from kDefault, plus sensitive data
+    /// that it may have strippped.</para>
+    /// <code>
     ///  * Includes cookies and authentication headers.
     ///  * Does not include the full bytes read/written to sockets.
+    /// </code>
     /// </summary>
     nlcmIncludeSensitive,
     /// <summary>
-    /// Logging level that includes everything that is possible to be logged.
-    ///
+    /// <para>Logging level that includes everything that is possible to be logged.</para>
+    /// <code>
     ///  * Includes the actual bytes read/written to sockets
     ///  * Will result in large log files.
+    /// </code>
     /// </summary>
     nlcmEverything
   );
@@ -2611,6 +2666,18 @@ type
   );
 
   /// <summary>
+  /// Specifies the zoom commands supported by ICefBrowserHost.Zoom.
+  /// </summary>
+  /// <remarks>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types.h">CEF source file: /include/internal/cef_types.h (cef_zoom_command_t)</see></para>
+  /// </remarks>
+  TCefZoomCommand = (
+    CEF_ZOOM_COMMAND_OUT,
+    CEF_ZOOM_COMMAND_RESET,
+    CEF_ZOOM_COMMAND_IN
+  );
+
+  /// <summary>
   /// Specifies the gesture commands.
   /// </summary>
   /// <remarks>
@@ -3032,6 +3099,13 @@ type
     /// </summary>
     log_severity                             : TCefLogSeverity;
     /// <summary>
+    /// The log items prepended to each log line. If not set the default log items
+    /// will be used. Also configurable using the "log-items" command-line switch
+    /// with a value of "none" for no log items, or a comma-delimited list of
+    /// values "pid", "tid", "timestamp" or "tickcount" for custom log items.
+    /// </summary>
+    log_items                                : TCefLogItems;
+    /// <summary>
     /// Custom flags that will be used when initializing the V8 JavaScript engine.
     /// The consequences of using custom flags may not be well tested. Also
     /// configurable using the "js-flags" command-line switch.
@@ -3093,11 +3167,10 @@ type
     background_color                         : TCefColor;
     /// <summary>
     /// Comma delimited ordered list of language codes without any whitespace that
-    /// will be used in the "Accept-Language" HTTP header. May be overridden on a
-    /// per-browser basis using the TCefBrowserSettings.accept_language_list value.
-    /// If both values are empty then "en-US,en" will be used. Can be overridden
-    /// for individual ICefRequestContext instances via the
-    /// TCefRequestContextSettings.accept_language_list value.
+    /// will be used in the "Accept-Language" HTTP request header and
+    /// "navigator.language" JS attribute. Can be overridden for individual
+    /// ICefRequestContext instances via the
+    /// TCefRequestContextSettingsCefRequestContextSettings.accept_language_list value.
     /// </summary>
     accept_language_list                     : TCefString;
     /// <summary>
@@ -3113,6 +3186,20 @@ type
     /// </summary>
     cookieable_schemes_list                  : TCefString;
     cookieable_schemes_exclude_defaults      : integer;
+
+    /// <summary>
+    /// <para>Specify an ID to enable Chrome policy management via Platform and OS-user
+    /// policies. On Windows, this is a registry key like
+    /// "SOFTWARE\\Policies\\Google\\Chrome". On MacOS, this is a bundle ID like
+    /// "com.google.Chrome". On Linux, this is an absolute directory path like
+    /// "/etc/opt/chrome/policies". Only supported with the Chrome runtime. See
+    /// https://support.google.com/chrome/a/answer/9037717 for details.</para>
+    /// <para>Chrome Browser Cloud Management integration, when enabled via the
+    /// "enable-chrome-browser-cloud-management" command-line flag, will also use
+    /// the specified ID. See https://support.google.com/chrome/a/answer/9116814
+    /// for details.</para>
+    /// </summary>
+    chrome_policy_id                        : TCefString;
   end;
 
   /// <summary>
@@ -3463,18 +3550,16 @@ type
     /// </summary>
     background_color                : TCefColor;
     /// <summary>
-    /// Comma delimited ordered list of language codes without any whitespace that
-    /// will be used in the "Accept-Language" HTTP header. May be set globally
-    /// using the TCefSettings.accept_language_list value. If both values are
-    /// empty then "en-US,en" will be used.
-    /// </summary>
-    accept_language_list            : TCefString;
-    /// <summary>
     /// Controls whether the Chrome status bubble will be used. Only supported
     /// with the Chrome runtime. For details about the status bubble see
     /// https://www.chromium.org/user-experience/status-bubble/
     /// </summary>
     chrome_status_bubble            : TCefState;
+    /// <summary>
+    /// Controls whether the Chrome zoom bubble will be shown when zooming. Only
+    /// supported with the Chrome runtime.
+    /// </summary>
+    chrome_zoom_bubble              : TCefState;
   end;
 
   /// <summary>
@@ -3753,6 +3838,10 @@ type
     /// |header_template|.
     /// </summary>
     footer_template       : TCefString;
+    /// <summary>
+    /// Set to true (1) to generate tagged (accessible) PDF.
+    /// </summary>
+    generate_tagged_pdf   : integer;
   end;
 
   /// <summary>
@@ -3874,9 +3963,15 @@ type
   /// ContentSettingsType type.
   /// </summary>
   /// <remarks>
-  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types.h">CEF source file: /include/internal/cef_types.h (cef_content_setting_types_t)</see></para>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types_content_settings.h">CEF source file: /include/internal/cef_types_content_settings.h (cef_content_setting_types_t)</see></para>
   /// </remarks>
   TCefContentSettingTypes = (
+    /// <summary>
+    /// This setting governs whether cookies are enabled by the user in the
+    /// provided context. However, it may be overridden by other settings. This
+    /// enum should NOT be read directly to determine whether cookies are enabled;
+    /// the client should instead rely on the CookieSettings API.
+    /// </summary>
     CEF_CONTENT_SETTING_TYPE_COOKIES = 0,
     CEF_CONTENT_SETTING_TYPE_IMAGES,
     CEF_CONTENT_SETTING_TYPE_JAVASCRIPT,
@@ -3895,6 +3990,12 @@ type
     CEF_CONTENT_SETTING_TYPE_PROTOCOL_HANDLERS,
     CEF_CONTENT_SETTING_TYPE_DEPRECATED_PPAPI_BROKER,
     CEF_CONTENT_SETTING_TYPE_AUTOMATIC_DOWNLOADS,
+
+    /// <summary>
+    /// Advanced device-specific functions on MIDI devices. MIDI-SysEx
+    /// communications can be used for changing the MIDI device's persistent state
+    /// such as firmware.
+    /// </summary>
     CEF_CONTENT_SETTING_TYPE_MIDI_SYSEX,
     CEF_CONTENT_SETTING_TYPE_SSL_CERT_DECISIONS,
     CEF_CONTENT_SETTING_TYPE_PROTECTED_MEDIA_IDENTIFIER,
@@ -3914,8 +4015,9 @@ type
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_ADS_DATA,
     /// <summary>
-    /// This is special-cased in the permissions layer to always allow, and as
-    /// such doesn't have associated prefs data.
+    /// MIDI stands for Musical Instrument Digital Interface. It is a standard
+    /// that allows electronic musical instruments, computers, and other devices
+    /// to communicate with each other.
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_MIDI,
     /// <summary>
@@ -3982,10 +4084,6 @@ type
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_IDLE_DETECTION,
     /// <summary>
-    /// Setting for enabling auto-select of all screens for getDisplayMediaSet.
-    /// </summary>
-    CEF_CONTENT_SETTING_TYPE_GET_DISPLAY_MEDIA_SET_SELECT_ALL_SCREENS,
-    /// <summary>
     /// Content settings for access to serial ports. The "guard" content setting
     /// stores whether to allow sites to ask for permission to access a port. The
     /// permissions granted to access particular ports are stored in the "chooser
@@ -4022,14 +4120,13 @@ type
     CEF_CONTENT_SETTING_TYPE_WAKE_LOCK_SCREEN,
     CEF_CONTENT_SETTING_TYPE_WAKE_LOCK_SYSTEM,
     /// <summary>
-    /// Legacy SameSite cookie behavior. This disables SameSite=Lax-by-default,
+    /// <para>Legacy SameSite cookie behavior. This disables SameSite=Lax-by-default,
     /// SameSite=None requires Secure, and Schemeful Same-Site, forcing the
     /// legacy behavior wherein 1) cookies that don't specify SameSite are treated
     /// as SameSite=None, 2) SameSite=None cookies are not required to be Secure,
-    /// and 3) schemeful same-site is not active.
-    ///
-    /// This will also be used to revert to legacy behavior when future changes
-    /// in cookie handling are introduced.
+    /// and 3) schemeful same-site is not active.</para>
+    /// <para>This will also be used to revert to legacy behavior when future changes
+    /// in cookie handling are introduced.</para>
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_LEGACY_COOKIE_ACCESS,
     /// <summary>
@@ -4094,11 +4191,12 @@ type
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_WINDOW_MANAGEMENT,
     /// <summary>
-    /// Stores whether to allow insecure websites to make local network requests.
-    /// See also: https://wicg.github.io/local-network-access
+    /// Stores whether to allow insecure websites to make private network
+    /// requests.
+    /// See also: https://wicg.github.io/cors-rfc1918
     /// Set through enterprise policies only.
     /// </summary>
-    CEF_CONTENT_SETTING_TYPE_INSECURE_LOCAL_NETWORK,
+    CEF_CONTENT_SETTING_TYPE_INSECURE_PRIVATE_NETWORK,
     /// <summary>
     /// Content setting which stores whether or not a site can access low-level
     /// locally installed font data using the Local Fonts Access API.
@@ -4236,7 +4334,30 @@ type
     /// Used to indicate whether HTTPS-First Mode is enabled on the hostname.
     /// </summary>
     CEF_CONTENT_SETTING_TYPE_HTTPS_ENFORCED,
-
+    /// <summary>
+    /// Setting for enabling the `getAllScreensMedia` API. Spec link:
+    /// https://github.com/screen-share/capture-all-screens
+    /// </summary>
+    CEF_CONTENT_SETTING_TYPE_ALL_SCREEN_CAPTURE,
+    /// <summary>
+    /// Stores per origin metadata for cookie controls.
+    /// </summary>
+    CEF_CONTENT_SETTING_TYPE_COOKIE_CONTROLS_METADATA,
+    /// <summary>
+    /// Content Setting for 3PC accesses granted via 3PC deprecation trial.
+    /// </summary>
+    CEF_CONTENT_SETTING_TYPE_TPCD_SUPPORT,
+    /// <summary>
+    /// Content setting used to indicate whether entering picture-in-picture
+    /// automatically should be enabled.
+    /// </summary>
+    CEF_CONTENT_SETTING_TYPE_AUTO_PICTURE_IN_PICTURE,
+    /// <summary>
+    /// Content Setting for 3PC accesses granted by metadata delivered via the
+    /// component updater service. This type will only be used when
+    /// `net::features::kTpcdMetadataGrants` is enabled.
+    /// </summary>
+    CEF_CONTENT_SETTING_TYPE_TPCD_METADATA_GRANTS,
     CEF_CONTENT_SETTING_TYPE_NUM_TYPES
   );
 
@@ -4245,7 +4366,7 @@ type
   /// ContentSetting type.
   /// </summary>
   /// <remarks>
-  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types.h">CEF source file: /include/internal/cef_types.h (cef_content_setting_values_t)</see></para>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/internal/cef_types_content_settings.h">CEF source file: /include/internal/cef_types_content_settings.h (cef_content_setting_values_t)</see></para>
   /// </remarks>
   TCefContentSettingValues = (
     CEF_CONTENT_SETTING_VALUE_DEFAULT = 0,
@@ -5832,6 +5953,7 @@ type
     get_file_name         : function(self: PCefDragData): PCefStringUserFree; stdcall;
     get_file_contents     : function(self: PCefDragData; writer: PCefStreamWriter): NativeUInt; stdcall;
     get_file_names        : function(self: PCefDragData; names: TCefStringList): Integer; stdcall;
+    get_file_paths        : function(self: PCefDragData; paths: TCefStringList): Integer; stdcall;
     set_link_url          : procedure(self: PCefDragData; const url: PCefString); stdcall;
     set_link_title        : procedure(self: PCefDragData; const title: PCefString); stdcall;
     set_link_metadata     : procedure(self: PCefDragData; const data: PCefString); stdcall;
@@ -6784,6 +6906,9 @@ type
     has_view                          : function(self: PCefBrowserHost): Integer; stdcall;
     get_client                        : function(self: PCefBrowserHost): PCefClient; stdcall;
     get_request_context               : function(self: PCefBrowserHost): PCefRequestContext; stdcall;
+    can_zoom                          : function(self: PCefBrowserHost; command: TCefZoomCommand): Integer; stdcall;
+    zoom                              : procedure(self: PCefBrowserHost; command: TCefZoomCommand); stdcall;
+    get_default_zoom_level            : function(self: PCefBrowserHost): Double; stdcall;
     get_zoom_level                    : function(self: PCefBrowserHost): Double; stdcall;
     set_zoom_level                    : procedure(self: PCefBrowserHost; zoomLevel: Double); stdcall;
     run_file_dialog                   : procedure(self: PCefBrowserHost; mode: TCefFileDialogMode; const title, default_file_path: PCefString; accept_filters: TCefStringList; callback: PCefRunFileDialogCallback); stdcall;
@@ -7348,13 +7473,14 @@ type
   /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/views/cef_browser_view_delegate_capi.h">CEF source file: /include/capi/views/cef_browser_view_delegate_capi.h (cef_browser_view_delegate_t)</see></para>
   /// </remarks>
   TCefBrowserViewDelegate = record
-    base                                : TCefViewDelegate;
-    on_browser_created                  : procedure(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; browser: PCefBrowser); stdcall;
-    on_browser_destroyed                : procedure(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; browser: PCefBrowser); stdcall;
-    get_delegate_for_popup_browser_view : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; const settings: PCefBrowserSettings; client: PCefClient; is_devtools: Integer): PCefBrowserViewDelegate; stdcall;
-    on_popup_browser_view_created       : function(self: PCefBrowserViewDelegate; browser_view, popup_browser_view: PCefBrowserView; is_devtools: Integer): Integer; stdcall;
-    get_chrome_toolbar_type             : function(self: PCefBrowserViewDelegate): TCefChromeToolbarType; stdcall;
-    on_gesture_command                  : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; gesture_command: TCefGestureCommand): Integer; stdcall;
+    base                                        : TCefViewDelegate;
+    on_browser_created                          : procedure(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; browser: PCefBrowser); stdcall;
+    on_browser_destroyed                        : procedure(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; browser: PCefBrowser); stdcall;
+    get_delegate_for_popup_browser_view         : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; const settings: PCefBrowserSettings; client: PCefClient; is_devtools: Integer): PCefBrowserViewDelegate; stdcall;
+    on_popup_browser_view_created               : function(self: PCefBrowserViewDelegate; browser_view, popup_browser_view: PCefBrowserView; is_devtools: Integer): Integer; stdcall;
+    get_chrome_toolbar_type                     : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView): TCefChromeToolbarType; stdcall;
+    use_frameless_window_for_picture_in_picture : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView): integer; stdcall;
+    on_gesture_command                          : function(self: PCefBrowserViewDelegate; browser_view: PCefBrowserView; gesture_command: TCefGestureCommand): Integer; stdcall;
   end;
 
   /// <summary>
@@ -7525,6 +7651,7 @@ type
     on_window_destroyed              : procedure(self: PCefWindowDelegate; window: PCefWindow); stdcall;
     on_window_activation_changed     : procedure(self: PCefWindowDelegate; window: PCefWindow; active: integer); stdcall;
     on_window_bounds_changed         : procedure(self: PCefWindowDelegate; window: PCefWindow; const new_bounds: PCefRect); stdcall;
+    on_window_fullscreen_transition  : procedure(self: PCefWindowDelegate; window: PCefWindow; is_completed: integer); stdcall;
     get_parent_window                : function(self: PCefWindowDelegate; window: PCefWindow; is_menu, can_activate_menu: PInteger): PCefWindow; stdcall;
     is_window_modal_dialog           : function(self: PCefWindowDelegate; window: PCefWindow): Integer; stdcall;
     get_initial_bounds               : function(self: PCefWindowDelegate; window: PCefWindow): TCefRect; stdcall;
@@ -7538,7 +7665,6 @@ type
     can_close                        : function(self: PCefWindowDelegate; window: PCefWindow): Integer; stdcall;
     on_accelerator                   : function(self: PCefWindowDelegate; window: PCefWindow; command_id: Integer): Integer; stdcall;
     on_key_event                     : function(self: PCefWindowDelegate; window: PCefWindow; const event: PCefKeyEvent): Integer; stdcall;
-    on_window_fullscreen_transition  : procedure(self: PCefWindowDelegate; window: PCefWindow; is_completed: integer); stdcall;
   end;
 
 implementation

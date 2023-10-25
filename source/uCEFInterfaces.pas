@@ -608,7 +608,8 @@ type
     procedure doOnBrowserDestroyed(const browser_view: ICefBrowserView; const browser: ICefBrowser);
     procedure doOnGetDelegateForPopupBrowserView(const browser_view: ICefBrowserView; const settings: TCefBrowserSettings; const client: ICefClient; is_devtools: boolean; var aResult : ICefBrowserViewDelegate);
     procedure doOnPopupBrowserViewCreated(const browser_view, popup_browser_view: ICefBrowserView; is_devtools: boolean; var aResult : boolean);
-    procedure doOnGetChromeToolbarType(var aChromeToolbarType: TCefChromeToolbarType);
+    procedure doOnGetChromeToolbarType(const browser_view: ICefBrowserView; var aChromeToolbarType: TCefChromeToolbarType);
+    procedure doOnUseFramelessWindowForPictureInPicture(const browser_view: ICefBrowserView; var aResult: boolean);
     procedure doOnGestureCommand(const browser_view: ICefBrowserView; gesture_command: TCefGestureCommand; var aResult : boolean);
   end;
 
@@ -844,15 +845,32 @@ type
     /// </summary>
     function  GetRequestContext: ICefRequestContext;
     /// <summary>
-    /// Get the current zoom level. The default zoom level is 0.0. This function
-    /// can only be called on the UI thread.
+    /// Returns true (1) if this browser can execute the specified zoom command.
+    /// This function can only be called on the UI thread.
+    /// </summary>
+    function  CanZoom(command: TCefZoomCommand): boolean;
+    /// <summary>
+    /// Execute a zoom command in this browser. If called on the UI thread the
+    /// change will be applied immediately. Otherwise, the change will be applied
+    /// asynchronously on the UI thread.
+    /// </summary>
+    procedure Zoom(command: TCefZoomCommand);
+    /// <summary>
+    /// Get the default zoom level. This value will be 0.0 by default but can be
+    /// configured with the Chrome runtime. This function can only be called on
+    /// the UI thread.
+    /// </summary>
+    function GetDefaultZoomLevel: Double;
+    /// <summary>
+    /// Get the current zoom level. This function can only be called on the UI
+    /// thread.
     /// </summary>
     function  GetZoomLevel: Double;
     /// <summary>
     /// Change the zoom level to the specified value. Specify 0.0 to reset the
-    /// zoom level. If called on the UI thread the change will be applied
-    /// immediately. Otherwise, the change will be applied asynchronously on the
-    /// UI thread.
+    /// zoom level to the default. If called on the UI thread the change will be
+    /// applied immediately. Otherwise, the change will be applied asynchronously
+    /// on the UI thread.
     /// </summary>
     procedure SetZoomLevel(const zoomLevel: Double);
     /// <summary>
@@ -1303,6 +1321,12 @@ type
     /// can only be called on the UI thread.
     /// </summary>
     property ZoomLevel                  : Double                   read GetZoomLevel                 write SetZoomLevel;
+    /// <summary>
+    /// Get the default zoom level. This value will be 0.0 by default but can be
+    /// configured with the Chrome runtime. This function can only be called on
+    /// the UI thread.
+    /// </summary>
+    property DefaultZoomLevel           : Double                   read GetDefaultZoomLevel;
     /// <summary>
     /// Returns the request context for this browser.
     /// </summary>
@@ -6767,8 +6791,13 @@ type
     /// Called when web content in the page has toggled fullscreen mode. If
     /// |fullscreen| is true (1) the content will automatically be sized to fill
     /// the browser content area. If |fullscreen| is false (0) the content will
-    /// automatically return to its original size and position. The client is
-    /// responsible for resizing the browser if desired.
+    /// automatically return to its original size and position. With the Alloy
+    /// runtime the client is responsible for triggering the fullscreen transition
+    /// (for example, by calling cef_window_t::SetFullscreen when using Views).
+    /// With the Chrome runtime the fullscreen transition will be triggered
+    /// automatically. The cef_window_delegate_t::OnWindowFullscreenTransition
+    /// function will be called during the fullscreen transition for notification
+    /// purposes.
     /// </summary>
     procedure OnFullScreenModeChange(const browser: ICefBrowser; fullscreen: Boolean);
     /// <summary>
@@ -7635,6 +7664,11 @@ type
     /// window.
     /// </summary>
     function  GetFileNames(var names: TStrings): Integer;
+    /// <summary>
+    /// Retrieve the list of file paths that are being dragged into the browser
+    /// window.
+    /// </summary>
+    function  GetFilePaths(var paths: TStrings): Integer;
     /// <summary>
     /// Set the link URL that is being dragged.
     /// </summary>
@@ -10301,7 +10335,7 @@ type
     function  GetBrowser : ICefBrowser;
     /// <summary>
     /// Returns the Chrome toolbar associated with this BrowserView. Only
-    /// supported when using the Chrome runtime. The ICefBrowserViewDelegate.get_chrome_toolbar_type()
+    /// supported when using the Chrome runtime. The ICefBrowserViewDelegate.GetChromeToolbarType
     /// function must return a value other than
     /// CEF_CTT_NONE and the toolbar will not be available until after this
     /// BrowserView is added to a ICefWindow and
@@ -10368,21 +10402,20 @@ type
     /// ICefBrowserView.GetChromeToolbar(). See that function for related
     /// documentation.
     /// </summary>
-    function  GetChromeToolbarType: TCefChromeToolbarType;
+    procedure OnGetChromeToolbarType(const browser_view: ICefBrowserView; var aResult : TCefChromeToolbarType);
+    /// <summary>
+    /// Return true (1) to create frameless windows for Document picture-in-
+    /// picture popups. Content in frameless windows should specify draggable
+    /// regions using "-webkit-app-region: drag" CSS.
+    /// </summary>
+    procedure OnUseFramelessWindowForPictureInPicture(const browser_view: ICefBrowserView; var aResult: boolean);
     /// <summary>
     /// Called when |browser_view| receives a gesture command. Return true (1) to
     /// handle (or disable) a |gesture_command| or false (0) to propagate the
-    /// gesture to the browser for default handling. This function will only be
-    /// called with the Alloy runtime. To handle these commands with the Chrome
-    /// runtime implement ICefCommandHandler.OnChromeCommand instead.
+    /// gesture to the browser for default handling. With the Chrome runtime these
+    /// commands can also be handled via cef_command_handler_t::OnChromeCommand.
     /// </summary>
     procedure OnGestureCommand(const browser_view: ICefBrowserView; gesture_command: TCefGestureCommand; var aResult : boolean);
-    /// <summary>
-    /// Returns the Chrome toolbar type that will be available via
-    /// ICefBrowserView.GetChromeToolbar(). See that function for related
-    /// documentation.
-    /// </summary>
-    property ChromeToolbarType: TCefChromeToolbarType read GetChromeToolbarType;
   end;
 
   /// <summary>
@@ -10663,7 +10696,9 @@ type
     /// </summary>
     procedure Restore;
     /// <summary>
-    /// Set fullscreen Window state.
+    /// Set fullscreen Window state. The
+    /// ICefWindowDelegate.OnWindowFullscreenTransition function will be
+    /// called during the fullscreen transition for notification purposes.
     /// </summary>
     procedure SetFullscreen(fullscreen: boolean);
     /// <summary>
@@ -10869,6 +10904,16 @@ type
     /// </summary>
     procedure OnWindowBoundsChanged(const window_: ICefWindow; const new_bounds: TCefRect);
     /// <summary>
+    /// Called when |window| is transitioning to or from fullscreen mode. On MacOS
+    /// the transition occurs asynchronously with |is_competed| set to false (0)
+    /// when the transition starts and true (1) after the transition completes. On
+    /// other platforms the transition occurs synchronously with |is_completed|
+    /// set to true (1) after the transition completes. With the Alloy runtime you
+    /// must also implement ICefDisplayHandler.OnFullscreenModeChange to
+    /// handle fullscreen transitions initiated by browser content.
+    /// </summary>
+    procedure OnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
+    /// <summary>
     /// Return the parent for |window| or NULL if the |window| does not have a
     /// parent. Windows with parents will not get a taskbar button. Set |is_menu|
     /// to true (1) if |window| will be displayed as a menu, in which case it will
@@ -10948,13 +10993,6 @@ type
     /// true (1) if the keyboard event was handled or false (0) otherwise.
     /// </summary>
     procedure OnKeyEvent(const window_: ICefWindow; const event: TCefKeyEvent; var aResult : boolean);
-    /// <summary>
-    /// Called when the |window| is transitioning to or from fullscreen mode. The
-    /// transition occurs in two stages, with |is_competed| set to false (0) when
-    /// the transition starts and true (1) when the transition completes. This
-    /// function is only supported on macOS.
-    /// </summary>
-    procedure OnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
   end;
 
 implementation

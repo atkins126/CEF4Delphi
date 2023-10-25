@@ -22,14 +22,29 @@ uses
 type
   TCefPanelDelegateRef = class(TCefViewDelegateRef, ICefPanelDelegate)
     public
+      /// <summary>
+      /// Returns a ICefPanelDelegate instance using a PCefPanelDelegate data pointer.
+      /// </summary>
       class function UnWrap(data: Pointer): ICefPanelDelegate;
   end;
 
+  /// <summary>
+  /// Implement this interface to handle Panel events. The functions of this
+  /// interface will be called on the browser process UI thread unless otherwise
+  /// indicated.
+  /// </summary>
+  /// <remarks>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/views/cef_panel_delegate_capi.h">CEF source file: /include/capi/views/cef_panel_delegate_capi.h (cef_panel_delegate_t)</see></para>
+  /// </remarks>
   TCefPanelDelegateOwn = class(TCefViewDelegateOwn, ICefPanelDelegate)
     public
       constructor Create; override;
   end;
 
+  /// <summary>
+  /// This class handles all the ICefPanelDelegate methods which call the ICefPanelDelegateEvents methods.
+  /// ICefPanelDelegateEvents will be implemented by the control receiving the ICefPanelDelegate events.
+  /// </summary>
   TCustomPanelDelegate = class(TCefPanelDelegateOwn)
     protected
       FEvents : Pointer;
@@ -47,6 +62,9 @@ type
       procedure OnBlur(const view: ICefView); override;
 
     public
+      /// <summary>
+      /// Creates an instance of this class liked to an interface that's implemented by a control receiving the events.
+      /// </summary>
       constructor Create(const events: ICefPanelDelegateEvents); reintroduce;
   end;
 
@@ -91,6 +109,8 @@ end;
 
 procedure TCustomPanelDelegate.OnGetPreferredSize(const view: ICefView; var aResult : TCefSize);
 begin
+  inherited OnGetPreferredSize(view, aResult);
+
   try
     if (FEvents <> nil) then
       ICefPanelDelegateEvents(FEvents).doOnGetPreferredSize(view, aResult);
@@ -102,6 +122,8 @@ end;
 
 procedure TCustomPanelDelegate.OnGetMinimumSize(const view: ICefView; var aResult : TCefSize);
 begin
+  inherited OnGetMinimumSize(view, aResult);
+
   try
     if (FEvents <> nil) then
       ICefPanelDelegateEvents(FEvents).doOnGetMinimumSize(view, aResult);
@@ -113,6 +135,8 @@ end;
 
 procedure TCustomPanelDelegate.OnGetMaximumSize(const view: ICefView; var aResult : TCefSize);
 begin
+  inherited OnGetMaximumSize(view, aResult);
+
   try
     if (FEvents <> nil) then
       ICefPanelDelegateEvents(FEvents).doOnGetMaximumSize(view, aResult);
@@ -124,6 +148,8 @@ end;
 
 procedure TCustomPanelDelegate.OnGetHeightForWidth(const view: ICefView; width: Integer; var aResult: Integer);
 begin
+  inherited OnGetHeightForWidth(view, width, aResult);
+
   try
     if (FEvents <> nil) then
       ICefPanelDelegateEvents(FEvents).doOnGetHeightForWidth(view, width, aResult);

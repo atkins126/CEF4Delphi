@@ -115,7 +115,9 @@ type
       procedure Restore;
 
       /// <summary>
-      /// Set fullscreen Window state.
+      /// Set fullscreen Window state. The
+      /// ICefWindowDelegate.OnWindowFullscreenTransition function will be
+      /// called during the fullscreen transition for notification purposes.
       /// </summary>
       procedure SetFullscreen(fullscreen: boolean);
 
@@ -282,7 +284,13 @@ type
       procedure RemoveAllAccelerators;
 
     public
+      /// <summary>
+      /// Returns a ICefWindow instance using a PCefWindow data pointer.
+      /// </summary>
       class function UnWrap(data: Pointer): ICefWindow;
+      /// <summary>
+      /// Create a new Window.
+      /// </summary>
       class function CreateTopLevel(const delegate: ICefWindowDelegate): ICefWindow;
   end;
 
