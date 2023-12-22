@@ -282,6 +282,7 @@ type
     procedure doOnRegisterCustomPreferences(type_: TCefPreferencesType; registrar: PCefPreferenceRegistrar);
     procedure doOnContextInitialized;
     procedure doOnBeforeChildProcessLaunch(const commandLine: ICefCommandLine);
+    procedure doOnAlreadyRunningAppRelaunch(const commandLine: ICefCommandLine; const current_directory: ustring; var aResult: boolean);
     procedure doOnScheduleMessagePumpWork(const delayMs: Int64);
     procedure doGetDefaultClient(var aClient : ICefClient);
 
@@ -367,6 +368,7 @@ type
 
     // ICefLifeSpanHandler
     function  doOnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    procedure doOnBeforeDevToolsPopup(const browser: ICefBrowser; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var use_default_window: boolean);
     procedure doOnAfterCreated(const browser: ICefBrowser);
     procedure doOnBeforeClose(const browser: ICefBrowser);
     function  doOnClose(const browser: ICefBrowser): Boolean;
@@ -535,6 +537,9 @@ type
     function  MustCreatePrintHandler : boolean;
     function  MustCreateFrameHandler : boolean;
     function  MustCreatePermissionHandler : boolean;
+    function  GetComponentID : integer;
+
+    property ComponentID : integer read GetComponentID;
   end;
 
   /// <summary>
@@ -567,6 +572,9 @@ type
 
     // Custom
     procedure doOnCreateURLRequest;
+    function  GetComponentID : integer;
+
+    property ComponentID : integer read GetComponentID;
   end;
 
   /// <summary>
@@ -588,6 +596,9 @@ type
 
     // Custom
     procedure doCreateCustomView;
+    function  GetComponentID : integer;
+
+    property ComponentID : integer read GetComponentID;
   end;
 
   /// <summary>
@@ -1297,7 +1308,46 @@ type
     /// be called on the UI thread.
     /// </summary>
     function  IsAudioMuted : boolean;
-
+    /// <summary>
+    /// Returns true (1) if the renderer is currently in browser fullscreen. This
+    /// differs from window fullscreen in that browser fullscreen is entered using
+    /// the JavaScript Fullscreen API and modifies CSS attributes such as the
+    /// ::backdrop pseudo-element and :fullscreen pseudo-structure. This function
+    /// can only be called on the UI thread.
+    /// </summary>
+    function IsFullscreen : boolean;
+    /// <summary>
+    /// Requests the renderer to exit browser fullscreen. In most cases exiting
+    /// window fullscreen should also exit browser fullscreen. With the Alloy
+    /// runtime this function should be called in response to a user action such
+    /// as clicking the green traffic light button on MacOS
+    /// (ICefWindowDelegate.OnWindowFullscreenTransition callback) or pressing
+    /// the "ESC" key (ICefKeyboardHandler.OnPreKeyEvent callback). With the
+    /// Chrome runtime these standard exit actions are handled internally but
+    /// new/additional user actions can use this function. Set |will_cause_resize|
+    /// to true (1) if exiting browser fullscreen will cause a view resize.
+    /// </summary>
+    procedure ExitFullscreen(will_cause_resize: boolean);
+    /// <summary>
+    /// Returns true (1) if a Chrome command is supported and enabled. Values for
+    /// |command_id| can be found in the cef_command_ids.h file. This function can
+    /// only be called on the UI thread. Only used with the Chrome runtime.
+    /// </summary>
+    /// <remarks>
+    /// <para><see cref="uCEFConstants">See the IDC_* constants in uCEFConstants.pas for all the |command_id| values.</see></para>
+    /// <para><see href="https://source.chromium.org/chromium/chromium/src/+/main:chrome/app/chrome_command_ids.h">The command_id values are also available in chrome/app/chrome_command_ids.h</see></para>
+    /// </remarks>
+    function CanExecuteChromeCommand(command_id: integer): boolean;
+    /// <summary>
+    /// Execute a Chrome command. Values for |command_id| can be found in the
+    /// cef_command_ids.h file. |disposition| provides information about the
+    /// intended command target. Only used with the Chrome runtime.
+    /// </summary>
+    /// <remarks>
+    /// <para><see cref="uCEFConstants">See the IDC_* constants in uCEFConstants.pas for all the |command_id| values.</see></para>
+    /// <para><see href="https://source.chromium.org/chromium/chromium/src/+/main:chrome/app/chrome_command_ids.h">The command_id values are also available in chrome/app/chrome_command_ids.h</see></para>
+    /// </remarks>
+    procedure ExecuteChromeCommand(command_id: integer; disposition: TCefWindowOpenDisposition);
     /// <summary>
     /// Returns the hosted browser object.
     /// </summary>
@@ -3317,6 +3367,16 @@ type
     /// </summary>
     function NeuterArrayBuffer : boolean;
     /// <summary>
+    /// Returns the length (in bytes) of the ArrayBuffer.
+    /// </summary>
+    function GetArrayBufferByteLength: NativeUInt;
+    /// <summary>
+    /// Returns a pointer to the beginning of the memory block for this
+    /// ArrayBuffer backing store. The returned pointer is valid as long as the
+    /// ICefv8value is alive.
+    /// </summary>
+    function GetArrayBufferData: Pointer;
+    /// <summary>
     /// Returns the function name.
     /// </summary>
     function GetFunctionName: ustring;
@@ -3724,7 +3784,7 @@ type
     /// <summary>
     /// Returns the type of this form control element node.
     /// </summary>
-    function  GetFormControlElementType: ustring;
+    function  GetFormControlElementType: TCefDomFormControlType;
     /// <summary>
     /// Returns true (1) if this object is pointing to the same handle as |that|
     /// object.
@@ -4515,26 +4575,23 @@ type
   ICefBrowserProcessHandler = interface(ICefBaseRefCounted)
     ['{27291B7A-C0AE-4EE0-9115-15C810E22F6C}']
     /// <summary>
-    /// Provides an opportunity to register custom preferences prior to global and
-    /// request context initialization.
-    ///
-    /// If |type| is CEF_PREFERENCES_TYPE_GLOBAL the registered preferences can be
+    /// <para>Provides an opportunity to register custom preferences prior to global and
+    /// request context initialization.</para>
+    /// <para>If |type| is CEF_PREFERENCES_TYPE_GLOBAL the registered preferences can be
     /// accessed via ICefPreferenceManager.GetGlobalPreferences after
     /// OnContextInitialized is called. Global preferences are registered a single
     /// time at application startup. See related TCefSettings.cache_path and
-    /// TCefSettings.persist_user_preferences configuration.
-    ///
-    /// If |type| is CEF_PREFERENCES_TYPE_REQUEST_CONTEXT the preferences can be
+    /// TCefSettings.persist_user_preferences configuration.</para>
+    /// <para>If |type| is CEF_PREFERENCES_TYPE_REQUEST_CONTEXT the preferences can be
     /// accessed via the ICefRequestContext after
     /// ICefRequestContextHandler.OnRequestContextInitialized is called.
     /// Request context preferences are registered each time a new
     /// ICefRequestContext is created. It is intended but not required that all
     /// request contexts have the same registered preferences. See related
     /// TCefRequestContextSettings.cache_path and
-    /// TCefRequestContextSettings.persist_user_preferences configuration.
-    ///
-    /// Do not keep a reference to the |registrar| object. This function is called
-    /// on the browser process UI thread.
+    /// TCefRequestContextSettings.persist_user_preferences configuration.</para>
+    /// <para>Do not keep a reference to the |registrar| object. This function is called
+    /// on the browser process UI thread.</para>
     /// </summary>
     procedure OnRegisterCustomPreferences(type_: TCefPreferencesType; registrar: PCefPreferenceRegistrar);
     /// <summary>
@@ -4550,6 +4607,23 @@ type
     /// |command_line| outside of this function.
     /// </summary>
     procedure OnBeforeChildProcessLaunch(const commandLine: ICefCommandLine);
+    /// <summary>
+    /// <para>Implement this function to provide app-specific behavior when an already
+    /// running app is relaunched with the same TCefSettings.root_cache_path value.
+    /// For example, activate an existing app window or create a new app window.
+    /// |command_line| will be read-only. Do not keep a reference to
+    /// |command_line| outside of this function. Return true (1) if the relaunch
+    /// is handled or false (0) for default relaunch behavior. Default behavior
+    /// will create a new default styled Chrome window.</para>
+    /// <para>To avoid cache corruption only a single app instance is allowed to run for
+    /// a given TCefSettings.root_cache_path value. On relaunch the app checks a
+    /// process singleton lock and then forwards the new launch arguments to the
+    /// already running app process before exiting early. Client apps should
+    /// therefore check the cef_initialize() return value for early exit before
+    /// proceeding.</para>
+    /// <para>This function will be called on the browser process UI thread.</para>
+    /// </summary>
+    procedure OnAlreadyRunningAppRelaunch(const commandLine: ICefCommandLine; const current_directory: ustring; var aResult: boolean);
     /// <summary>
     /// Called from any thread when work has been scheduled for the browser
     /// process main (UI) thread. This callback is used in combination with
@@ -4971,6 +5045,14 @@ type
   /// </remarks>
   ICefSchemeHandlerFactory = interface(ICefBaseRefCounted)
     ['{4D9B7960-B73B-4EBD-9ABE-6C1C43C245EB}']
+    /// <summary>
+    /// Return a new resource handler instance to handle the request or an NULL
+    /// reference to allow default handling of the request. |browser| and |frame|
+    /// will be the browser window and frame respectively that originated the
+    /// request or NULL if the request did not originate from a browser window
+    /// (for example, if the request came from ICefUrlRequest). The |request|
+    /// object passed to this function cannot be modified.
+    /// </summary>
     function New(const browser: ICefBrowser; const frame: ICefFrame; const schemeName: ustring; const request: ICefRequest): ICefResourceHandler;
   end;
 
@@ -5669,6 +5751,11 @@ type
     /// </summary>
     function Copy: ICefBinaryValue;
     /// <summary>
+    /// Returns a pointer to the beginning of the memory block. The returned
+    /// pointer is valid as long as the ICefBinaryValue is alive.
+    /// </summary>
+    function GetRawData: Pointer;
+    /// <summary>
     /// Returns the data size.
     /// </summary>
     function GetSize: NativeUInt;
@@ -6050,6 +6137,24 @@ type
     /// ICefRenderProcessHandler.OnBrowserCreated in the render process.
     /// </summary>
     function  OnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    /// <summary>
+    /// <para>Called on the UI thread before a new DevTools popup browser is created.
+    /// The |browser| value represents the source of the popup request. Optionally
+    /// modify |windowInfo|, |client|, |settings| and |extra_info| values. The
+    /// |client|, |settings| and |extra_info| values will default to the source
+    /// browser's values. Any modifications to |windowInfo| will be ignored if the
+    /// parent browser is Views-hosted (wrapped in a ICefBrowserView).</para>
+    /// <para>The |extra_info| parameter provides an opportunity to specify extra
+    /// information specific to the created popup browser that will be passed to
+    /// ICefRenderProcessHandler.OnBrowserCreated() in the render process.
+    /// The existing |extra_info| object, if any, will be read-only but may be
+    /// replaced with a new object.</para>
+    /// <para>Views-hosted source browsers will create Views-hosted DevTools popups
+    /// unless |use_default_window| is set to to true (1). DevTools popups can be
+    /// blocked by returning true (1) from ICefCommandHandler.OnChromeCommand
+    /// for IDC_DEV_TOOLS. Only used with the Chrome runtime.</para>
+    /// </summary>
+    procedure OnBeforeDevToolsPopup(const browser: ICefBrowser; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var use_default_window: boolean);
     /// <summary>
     /// Called after a new browser is created. It is now safe to begin performing
     /// actions with |browser|. ICefFrameHandler callbacks related to initial
@@ -6793,9 +6898,9 @@ type
     /// the browser content area. If |fullscreen| is false (0) the content will
     /// automatically return to its original size and position. With the Alloy
     /// runtime the client is responsible for triggering the fullscreen transition
-    /// (for example, by calling cef_window_t::SetFullscreen when using Views).
+    /// (for example, by calling ICefWindow.SetFullscreen when using Views).
     /// With the Chrome runtime the fullscreen transition will be triggered
-    /// automatically. The cef_window_delegate_t::OnWindowFullscreenTransition
+    /// automatically. The ICefWindowDelegate.OnWindowFullscreenTransition
     /// function will be called during the fullscreen transition for notification
     /// purposes.
     /// </summary>
@@ -10343,13 +10448,18 @@ type
     /// </summary>
     function  GetChromeToolbar : ICefView;
     /// <summary>
-    /// Sets whether accelerators registered with ICefWindow.SetAccelerator are
-    /// triggered before or after the event is sent to the ICefBrowser. If
-    /// |prefer_accelerators| is true (1) then the matching accelerator will be
-    /// triggered immediately and the event will not be sent to the ICefBrowser.
-    /// If |prefer_accelerators| is false (0) then the matching accelerator will
-    /// only be triggered if the event is not handled by web content or by
-    /// ICefKeyboardHandler. The default value is false (0).
+    /// Sets whether normal priority accelerators are first forwarded to the web
+    /// content (`keydown` event handler) or ICefKeyboardHandler. Normal priority
+    /// accelerators can be registered via ICefWindow.SetAccelerator (with
+    /// |high_priority|=false) or internally for standard accelerators supported
+    /// by the Chrome runtime. If |prefer_accelerators| is true then the matching
+    /// accelerator will be triggered immediately (calling
+    /// ICefWindowDelegate.OnAccelerator or ICefCommandHandler.OnChromeCommand
+    /// respectively) and the event will not be forwarded to the web content or
+    /// ICefKeyboardHandler first. If |prefer_accelerators| is false then the
+    /// matching accelerator will only be triggered if the event is not handled by
+    /// web content (`keydown` event handler that calls `event.preventDefault()`)
+    /// or by ICefKeyboardHandler. The default value is false.
     /// </summary>
     procedure SetPreferAccelerators(prefer_accelerators: boolean);
   end;
@@ -10827,12 +10937,19 @@ type
     /// </summary>
     procedure SendMouseEvents(button: TCefMouseButtonType; mouse_down, mouse_up: boolean);
     /// <summary>
-    /// Set the keyboard accelerator for the specified |command_id|. |key_code|
-    /// can be any virtual key or character value.
+    /// <para>Set the keyboard accelerator for the specified |command_id|. |key_code|
+    /// can be any virtual key or character value. Required modifier keys are
+    /// specified by |shift_pressed|, |ctrl_pressed| and/or |alt_pressed|.
     /// ICefWindowDelegate.OnAccelerator will be called if the keyboard
-    /// combination is triggered while this window has focus.
+    /// combination is triggered while this window has focus.</para>
+    /// <para>The |high_priority| value will be considered if a child ICefBrowserView
+    /// has focus when the keyboard combination is triggered. If |high_priority|
+    /// is true (1) then the key event will not be forwarded to the web content
+    /// (`keydown` event handler) or ICefKeyboardHandler first. If
+    /// |high_priority| is false (0) then the behavior will depend on the
+    /// ICefBrowserView.SetPreferAccelerators configuration.</para>
     /// </summary>
-    procedure SetAccelerator(command_id, key_code : Integer; shift_pressed, ctrl_pressed, alt_pressed: boolean);
+    procedure SetAccelerator(command_id, key_code : Integer; shift_pressed, ctrl_pressed, alt_pressed, high_priority: boolean);
     /// <summary>
     /// Remove the keyboard accelerator for the specified |command_id|.
     /// </summary>

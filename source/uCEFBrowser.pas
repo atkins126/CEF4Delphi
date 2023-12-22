@@ -116,6 +116,10 @@ type
       function  IsBackgroundHost : boolean;
       procedure SetAudioMuted(mute: boolean);
       function  IsAudioMuted : boolean;
+      function  IsFullscreen : boolean;
+      procedure ExitFullscreen(will_cause_resize: boolean);
+      function  CanExecuteChromeCommand(command_id: integer): boolean;
+      procedure ExecuteChromeCommand(command_id: integer; disposition: TCefWindowOpenDisposition);
 
     public
       class function UnWrap(data: Pointer): ICefBrowserHost;
@@ -356,6 +360,26 @@ end;
 function TCefBrowserHostRef.IsAudioMuted : boolean;
 begin
   Result := PCefBrowserHost(FData)^.is_audio_muted(PCefBrowserHost(FData)) <> 0;
+end;
+
+function TCefBrowserHostRef.IsFullscreen : boolean;
+begin
+  Result := PCefBrowserHost(FData)^.is_fullscreen(PCefBrowserHost(FData)) <> 0;
+end;
+
+procedure TCefBrowserHostRef.ExitFullscreen(will_cause_resize: boolean);
+begin
+  PCefBrowserHost(FData)^.exit_fullscreen(PCefBrowserHost(FData), Ord(will_cause_resize));
+end;
+
+function TCefBrowserHostRef.CanExecuteChromeCommand(command_id: integer): boolean;
+begin
+  Result := PCefBrowserHost(FData)^.can_execute_chrome_command(PCefBrowserHost(FData), command_id) <> 0;
+end;
+
+procedure TCefBrowserHostRef.ExecuteChromeCommand(command_id: integer; disposition: TCefWindowOpenDisposition);
+begin
+  PCefBrowserHost(FData)^.execute_chrome_command(PCefBrowserHost(FData), command_id, disposition);
 end;
 
 procedure TCefBrowserHostRef.DragTargetDragEnter(const dragData: ICefDragData; const event: PCefMouseEvent; allowedOps: TCefDragOperations);

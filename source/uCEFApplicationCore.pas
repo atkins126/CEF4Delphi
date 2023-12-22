@@ -18,16 +18,16 @@ interface
 
 uses
   {$IFDEF DELPHI16_UP}
-    {$IFDEF MSWINDOWS}WinApi.Windows,{$ENDIF} System.Classes, System.UITypes,
+    {$IFDEF MSWINDOWS}WinApi.Windows,{$ENDIF} System.Classes, System.UITypes, System.SyncObjs,
     {$IFDEF FMX}uCEFLinuxTypes,{$ENDIF}
   {$ELSE}
-    {$IFDEF MSWINDOWS}Windows,{$ENDIF} Classes, {$IFDEF FPC}dynlibs,{$ENDIF}
+    {$IFDEF MSWINDOWS}Windows,{$ENDIF} Classes, {$IFDEF FPC}dynlibs,{$ENDIF} SyncObjs,
   {$ENDIF}
   {$IFDEF LINUX}
     {$IFDEF FPC}xlib,{$ENDIF} uCEFArgCopy,
   {$ENDIF}
   uCEFTypes, uCEFInterfaces, uCEFApplicationEvents, uCEFBaseRefCounted,
-  uCEFSchemeRegistrar, uCEFPreferenceRegistrar;
+  uCEFSchemeRegistrar, uCEFPreferenceRegistrar, uCEFComponentIdList;
 
 const
   {$I uCEFVersion.inc}
@@ -91,6 +91,7 @@ type
       FCookieableSchemesList             : ustring;
       FCookieableSchemesExcludeDefaults  : boolean;
       FChromePolicyId                    : ustring;
+      FChromeAppIconId                   : integer;
 
       // Fields used to set command line switches
       FSingleProcess                     : boolean;
@@ -192,6 +193,7 @@ type
       FCustomCommandLineValues           : TStringList;
       FAppSettings                       : TCefSettings;
       FDisableGPUCache                   : boolean;
+      FComponentIDList                   : TCEFComponentIdList;
 
       // ICefApp
       FOnRegisterCustomSchemes           : TOnRegisterCustomSchemesEvent;
@@ -200,6 +202,7 @@ type
       FOnRegisterCustomPreferences       : TOnRegisterCustomPreferencesEvent;
       FOnContextInitialized              : TOnContextInitializedEvent;
       FOnBeforeChildProcessLaunch        : TOnBeforeChildProcessLaunchEvent;
+      FOnAlreadyRunningAppRelaunch       : TOnAlreadyRunningAppRelaunchEvent;
       FOnScheduleMessagePumpWork         : TOnScheduleMessagePumpWorkEvent;
       FOnGetDefaultClient                : TOnGetDefaultClientEvent;
 
@@ -325,6 +328,7 @@ type
       procedure doOnRegisterCustomPreferences(type_: TCefPreferencesType; registrar: PCefPreferenceRegistrar); virtual;
       procedure doOnContextInitialized; virtual;
       procedure doOnBeforeChildProcessLaunch(const commandLine: ICefCommandLine); virtual;
+      procedure doOnAlreadyRunningAppRelaunch(const commandLine: ICefCommandLine; const current_directory: ustring; var aResult: boolean); virtual;
       procedure doOnScheduleMessagePumpWork(const delayMs: Int64); virtual;
       procedure doGetDefaultClient(var aClient : ICefClient); virtual;
 
@@ -447,6 +451,19 @@ type
       procedure   InitLibLocationFromArgs;
       {$ENDIF}
       /// <summary>
+      /// Returns true if a custom component ID is valid before executing a CEF task.
+      /// </summary>
+      function    ValidComponentID(aComponentID : integer) : boolean;
+      /// <summary>
+      /// Returns the next component ID and adds this value to the valid ID list.
+      /// </summary>
+      function    NextComponentID : integer;
+      /// <summary>
+      /// Removes a component ID from the valid ID list when a component is destroyed.
+      /// </summary>
+      procedure   RemoveComponentID(aComponentID : integer);
+
+      /// <summary>
       /// Set to true (1) to disable the sandbox for sub-processes. See
       /// cef_sandbox_win.h for requirements to enable the sandbox on Windows. Also
       /// configurable using the "no-sandbox" command-line switch.
@@ -517,30 +534,43 @@ type
       /// </summary>
       property CommandLineArgsDisabled           : Boolean                             read FCommandLineArgsDisabled           write FCommandLineArgsDisabled;
       /// <summary>
-      /// The location where data for the global browser cache will be stored on
+      /// The directory where data for the global browser cache will be stored on
       /// disk. If this value is non-empty then it must be an absolute path that is
       /// either equal to or a child directory of TCefSettings.root_cache_path. If
       /// this value is empty then browsers will be created in "incognito mode"
-      /// where in-memory caches are used for storage and no data is persisted to
-      /// disk. HTML5 databases such as localStorage will only persist across
-      /// sessions if a cache path is specified. Can be overridden for individual
-      /// CefRequestContext instances via the TCefRequestContextSettings.cache_path
-      /// value. When using the Chrome runtime the "default" profile will be used if
-      /// |cache_path| and |root_cache_path| have the same value.
+      /// where in-memory caches are used for storage and no profile-specific data
+      /// is persisted to disk (installation-specific data will still be persisted
+      /// in root_cache_path). HTML5 databases such as localStorage will only
+      /// persist across sessions if a cache path is specified. Can be overridden
+      /// for individual ICefRequestContext instances via the
+      /// ICefRequestContextSettings.cache_path value. When using the Chrome runtime
+      /// any child directory value will be ignored and the "default" profile (also
+      /// a child directory) will be used instead.
       /// </summary>
       property Cache                             : ustring                             read FCache                             write SetCache;
       /// <summary>
-      /// The root directory that all TCefSettings.cache_path and
-      /// TCefRequestContextSettings.cache_path values must have in common. If this
-      /// value is empty and TCefSettings.cache_path is non-empty then it will
-      /// default to the TCefSettings.cache_path value. If both values are empty
-      /// then the default platform-specific directory will be used
+      /// <para>The root directory for installation-specific data and the parent directory
+      /// for profile-specific data. All TCefSettings.cache_path and
+      /// ICefRequestContextSettings.cache_path values must have this parent
+      /// directory in common. If this value is empty and TCefSettings.cache_path is
+      /// non-empty then it will default to the TCefSettings.cache_path value. Any
+      /// non-empty value must be an absolute path. If both values are empty then
+      /// the default platform-specific directory will be used
       /// ("~/.config/cef_user_data" directory on Linux, "~/Library/Application
       /// Support/CEF/User Data" directory on MacOS, "AppData\Local\CEF\User Data"
-      /// directory under the user profile directory on Windows). If this value is
-      /// non-empty then it must be an absolute path. Failure to set this value
-      /// correctly may result in the sandbox blocking read/write access to certain
-      /// files.
+      /// directory under the user profile directory on Windows). Use of the default
+      /// directory is not recommended in production applications (see below).</para>
+      /// <para>Multiple application instances writing to the same root_cache_path
+      /// directory could result in data corruption. A process singleton lock based
+      /// on the root_cache_path value is therefore used to protect against this.
+      /// This singleton behavior applies to all CEF-based applications using
+      /// version 120 or newer. You should customize root_cache_path for your
+      /// application and implement ICefBrowserProcessHandler.OnAlreadyRunningAppRelaunch,
+      /// which will then be called on any app relaunch
+      /// with the same root_cache_path value.</para>
+      /// <para>Failure to set the root_cache_path value correctly may result in startup
+      /// crashes or other unexpected behaviors (for example, the sandbox blocking
+      /// read/write access to certain files).</para>
       /// </summary>
       property RootCache                         : ustring                             read FRootCache                         write SetRootCache;
       /// <summary>
@@ -705,6 +735,14 @@ type
       /// for details.</para>
       /// </summary>
       property ChromePolicyId                    : ustring                             read FChromePolicyId                    write FChromePolicyId;
+      /// <summary>
+      /// Specify an ID for an ICON resource that can be loaded from the main
+      /// executable and used when creating default Chrome windows such as DevTools
+      /// and Task Manager. If unspecified the default Chromium ICON (IDR_MAINFRAME
+      /// [101]) will be loaded from libcef.dll. Only supported with the Chrome
+      /// runtime on Windows.
+      /// </summary>
+      property ChromeAppIconId                   : integer                             read FChromeAppIconId                   write FChromeAppIconId;
       /// <summary>
       /// Runs the renderer and plugins in the same process as the browser.
       /// </summary>
@@ -1427,6 +1465,26 @@ type
       /// </remarks>
       property OnBeforeChildProcessLaunch        : TOnBeforeChildProcessLaunchEvent    read FOnBeforeChildProcessLaunch        write FOnBeforeChildProcessLaunch;
       /// <summary>
+      /// <para>Implement this function to provide app-specific behavior when an already
+      /// running app is relaunched with the same TCefSettings.root_cache_path value.
+      /// For example, activate an existing app window or create a new app window.
+      /// |command_line| will be read-only. Do not keep a reference to
+      /// |command_line| outside of this function. Return true (1) if the relaunch
+      /// is handled or false (0) for default relaunch behavior. Default behavior
+      /// will create a new default styled Chrome window.</para>
+      /// <para>To avoid cache corruption only a single app instance is allowed to run for
+      /// a given TCefSettings.root_cache_path value. On relaunch the app checks a
+      /// process singleton lock and then forwards the new launch arguments to the
+      /// already running app process before exiting early. Client apps should
+      /// therefore check the cef_initialize() return value for early exit before
+      /// proceeding.</para>
+      /// <para>This function will be called on the browser process UI thread.</para>
+      /// </summary>
+      /// <remarks>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_browser_process_handler_capi.h">CEF source file: /include/capi/cef_browser_process_handler_capi.h (cef_browser_process_handler_t)</see></para>
+      /// </remarks>
+      property OnAlreadyRunningAppRelaunch       : TOnAlreadyRunningAppRelaunchEvent   read FOnAlreadyRunningAppRelaunch       write FOnAlreadyRunningAppRelaunch;
+      /// <summary>
       /// Called from any thread when work has been scheduled for the browser
       /// process main (UI) thread. This callback is used in combination with
       /// TCefSettings.external_message_pump and GlobalCEFApp.DoMessageLoopWork in
@@ -1741,6 +1799,7 @@ begin
   FCookieableSchemesList             := '';
   FCookieableSchemesExcludeDefaults  := False;
   FChromePolicyId                    := '';
+  FChromeAppIconId                   := 0;
 
   // Fields used to set command line switches
   FSingleProcess                     := False;
@@ -1859,6 +1918,7 @@ begin
   FillChar(FAppSettings, SizeOf(TCefSettings), 0);
   FAppSettings.size := SizeOf(TCefSettings);
   FDisableGPUCache                   := True;
+  FComponentIDList                   := nil;
 
   // ICefApp
   FOnRegisterCustomSchemes           := nil;
@@ -1867,6 +1927,7 @@ begin
   FOnRegisterCustomPreferences       := nil;
   FOnContextInitialized              := nil;
   FOnBeforeChildProcessLaunch        := nil;
+  FOnAlreadyRunningAppRelaunch       := nil;
   FOnScheduleMessagePumpWork         := nil;
   FOnGetDefaultClient                := nil;
 
@@ -1914,6 +1975,7 @@ begin
     {$ENDIF}
     if (FCustomCommandLines      <> nil) then FreeAndNil(FCustomCommandLines);
     if (FCustomCommandLineValues <> nil) then FreeAndNil(FCustomCommandLineValues);
+    if (FComponentIDList         <> nil) then FreeAndNil(FComponentIDList);
   finally
     inherited Destroy;
   end;
@@ -1993,6 +2055,12 @@ procedure TCefApplicationCore.doOnBeforeChildProcessLaunch(const commandLine: IC
 begin
   if assigned(FOnBeforeChildProcessLaunch) then
     FOnBeforeChildProcessLaunch(commandLine);
+end;
+
+procedure TCefApplicationCore.doOnAlreadyRunningAppRelaunch(const commandLine: ICefCommandLine; const current_directory: ustring; var aResult: boolean);
+begin
+  if assigned(FOnAlreadyRunningAppRelaunch) then
+    FOnAlreadyRunningAppRelaunch(commandLine, current_directory, aResult);
 end;
 
 procedure TCefApplicationCore.doOnScheduleMessagePumpWork(const delayMs: Int64);
@@ -2131,6 +2199,7 @@ begin
 
   FCustomCommandLines      := TStringList.Create;
   FCustomCommandLineValues := TStringList.Create;
+  FComponentIDList         := TCEFComponentIDList.Create;
 end;
 
 procedure TCefApplicationCore.AddCustomCommandLine(const aCommandLine, aValue : string);
@@ -2571,6 +2640,21 @@ begin
     FDeviceScaleFactor := GetDeviceScaleFactor;
 end;
 
+function TCefApplicationCore.ValidComponentID(aComponentID : integer) : boolean;
+begin
+  Result := FComponentIDList.ValidID(aComponentID);
+end;
+
+function TCefApplicationCore.NextComponentID : integer;
+begin
+  Result := FComponentIDList.NextID;
+end;
+
+procedure TCefApplicationCore.RemoveComponentID(aComponentID : integer);
+begin
+  FComponentIDList.RemoveID(aComponentID);
+end;
+
 procedure TCefApplicationCore.ShutDown;
 begin
   try
@@ -2689,6 +2773,7 @@ begin
   aSettings.cookieable_schemes_list                 := CefString(FCookieableSchemesList);
   aSettings.cookieable_schemes_exclude_defaults     := Ord(FCookieableSchemesExcludeDefaults);
   aSettings.chrome_policy_id                        := CefString(FChromePolicyId);
+  aSettings.chrome_app_icon_id                      := FChromeAppIconId;
 end;
 
 function TCefApplicationCore.InitializeLibrary(const aApp : ICefApp) : boolean;
@@ -3316,6 +3401,7 @@ begin
              (FMustCreateBrowserProcessHandler        or
               assigned(FOnContextInitialized)         or
               assigned(FOnBeforeChildProcessLaunch)   or
+              assigned(FOnAlreadyRunningAppRelaunch)  or
               assigned(FOnScheduleMessagePumpWork))   or
               assigned(FOnGetDefaultClient));
 end;
