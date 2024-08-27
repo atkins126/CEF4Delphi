@@ -13,10 +13,13 @@ uses
   {$SetPEFlags $20}
 {$ENDIF}
 
+{$R *.res}
+
 begin
   GlobalCEFApp                            := TCefApplicationCore.Create;
   GlobalCEFApp.WindowlessRenderingEnabled := True;
-  GlobalCEFApp.EnableGPU                  := True;
+  GlobalCEFApp.EnableGPU                  := True;     
+  GlobalCEFApp.SetCurrentDir              := True;
   //GlobalCEFApp.LogFile                    := 'debug.log';
   //GlobalCEFApp.LogSeverity                := LOGSEVERITY_VERBOSE;  
 

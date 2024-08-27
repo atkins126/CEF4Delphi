@@ -36,7 +36,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
     BevelOuter = bvNone
     Enabled = False
     TabOrder = 1
-    ExplicitWidth = 1176
     object NavButtonPnl: TPanel
       Left = 0
       Top = 0
@@ -116,7 +115,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
       Padding.Top = 9
       Padding.Bottom = 8
       TabOrder = 1
-      ExplicitWidth = 970
       object URLCbx: TComboBox
         Left = 0
         Top = 9
@@ -175,6 +173,10 @@ object MiniBrowserFrm: TMiniBrowserFrm
           
             'https://dagrs.berkeley.edu/sites/default/files/2020-01/sample.pd' +
             'f'
+          'https://codepen.io/udaymanvar/pen/MWaePBY'
+          
+            'https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/acc' +
+            'ept'
           'chrome://version/'
           'chrome://net-internals/'
           'chrome://tracing/'
@@ -193,7 +195,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
           'chrome://gpuhang'
           'chrome://extensions-support'
           'chrome://process-internals')
-        ExplicitWidth = 970
       end
     end
     object ConfigPnl: TPanel
@@ -204,7 +205,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
       Align = alRight
       BevelOuter = bvNone
       TabOrder = 2
-      ExplicitLeft = 1103
       object ConfigBtn: TButton
         Left = 40
         Top = 8
@@ -245,8 +245,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
     Align = alClient
     TabStop = True
     TabOrder = 0
-    ExplicitWidth = 1171
-    ExplicitHeight = 650
   end
   object DevTools: TCEFWindowParent
     Left = 1180
@@ -256,8 +254,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
     Align = alRight
     TabOrder = 2
     Visible = False
-    ExplicitLeft = 1176
-    ExplicitHeight = 650
   end
   object StatusBar1: TStatusBar
     Left = 0
@@ -280,8 +276,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
       item
         Width = 50
       end>
-    ExplicitTop = 691
-    ExplicitWidth = 1176
   end
   object Chromium1: TChromium
     OnTextResultAvailable = Chromium1TextResultAvailable
@@ -306,7 +300,6 @@ object MiniBrowserFrm: TMiniBrowserFrm
     OnStatusMessage = Chromium1StatusMessage
     OnConsoleMessage = Chromium1ConsoleMessage
     OnLoadingProgressChange = Chromium1LoadingProgressChange
-    OnCursorChange = Chromium1CursorChange
     OnMediaAccessChange = Chromium1MediaAccessChange
     OnCanDownload = Chromium1CanDownload
     OnBeforeDownload = Chromium1BeforeDownload

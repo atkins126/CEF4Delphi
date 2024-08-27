@@ -16,8 +16,11 @@ uses
 // If you don't add this flag the rederer process will crash when you try to load large images.
 {$SetPEFlags IMAGE_FILE_LARGE_ADDRESS_AWARE}
 
+{$R *.res}
+
 begin
-  GlobalCEFApp := TCefApplication.Create;
+  GlobalCEFApp := TCefApplication.Create;     
+  GlobalCEFApp.SetCurrentDir       := True;
 
   // In case you want to use custom directories for the CEF3 binaries, cache and user data.
   // If you don't set a cache directory the browser will use in-memory cache.

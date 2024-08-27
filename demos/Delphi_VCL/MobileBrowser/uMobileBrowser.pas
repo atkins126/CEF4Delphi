@@ -17,7 +17,6 @@ type
     Panel1: TPanel;
     Panel2: TPanel;
     AddressPnl: TPanel;
-    AddressEdt: TEdit;
     GoBtn: TButton;
     CEFWindowParent1: TCEFWindowParent;
     Splitter1: TSplitter;
@@ -48,11 +47,15 @@ type
     Panel10: TPanel;
     Label5: TLabel;
     AngleEdt: TSpinEdit;
+    AddressCb: TComboBox;
 
     procedure GoBtnClick(Sender: TObject);
     procedure Timer1Timer(Sender: TObject);
     procedure CanEmulateBtnClick(Sender: TObject);
     procedure OverrideUserAgentBtnClick(Sender: TObject);
+    procedure EmulateTouchChkClick(Sender: TObject);
+    procedure ClearDeviceMetricsOverrideBtnClick(Sender: TObject);
+    procedure OverrideDeviceMetricsBtnClick(Sender: TObject);
 
     procedure FormShow(Sender: TObject);
     procedure FormCreate(Sender: TObject);
@@ -64,9 +67,6 @@ type
     procedure Chromium1BeforePopup(Sender: TObject; const browser: ICefBrowser; const frame: ICefFrame; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess, Result: Boolean);
     procedure Chromium1OpenUrlFromTab(Sender: TObject; const browser: ICefBrowser; const frame: ICefFrame; const targetUrl: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; out Result: Boolean);
     procedure Chromium1DevToolsMethodResult(Sender: TObject; const browser: ICefBrowser; message_id: Integer; success: Boolean; const result: ICefValue);
-    procedure EmulateTouchChkClick(Sender: TObject);
-    procedure ClearDeviceMetricsOverrideBtnClick(Sender: TObject);
-    procedure OverrideDeviceMetricsBtnClick(Sender: TObject);
 
   protected
     // Variables to control when can we destroy the form safely
@@ -97,12 +97,14 @@ type
 var
   Form1: TForm1;
 
+procedure CreateGlobalCEFApp;
+
 implementation
 
 {$R *.dfm}
 
 uses
-  uCEFApplication, uCefMiscFunctions;
+  uCEFApplication, uCefMiscFunctions, uCEFListValue;
 
 // This demo allows you to emulate a mobile browser using the "Emulation" namespace of the DevTools.
 // It's necesary to reload the browser after using the controls in the right panel.
@@ -122,6 +124,19 @@ const
   DEVTOOLS_CLEARDEVICEMETRICSOVERRIDE_MSGID = 4;
   DEVTOOLS_SETDEVICEMETRICSOVERRIDE_MSGID   = 5;
 
+procedure CreateGlobalCEFApp;
+begin
+  GlobalCEFApp                            := TCefApplication.Create;
+  GlobalCEFApp.cache                      := 'cache';
+  GlobalCEFApp.EnablePrintPreview         := True;
+  GlobalCEFApp.EnableGPU                  := True;
+  GlobalCEFApp.ChromeRuntime              := True;
+  {$IFDEF DEBUG}
+  GlobalCEFApp.LogFile                    := 'debug.log';
+  GlobalCEFApp.LogSeverity                := LOGSEVERITY_INFO;
+  {$ENDIF}
+end;
+
 procedure TForm1.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 begin
   CanClose := FCanClose;
@@ -131,6 +146,10 @@ begin
       FClosing := True;
       Visible  := False;
       Chromium1.CloseBrowser(True);
+
+      // Workaround for the missing TChormium.OnClose event when "Chrome runtime" is enabled.
+      if GlobalCEFApp.ChromeRuntime then
+        CEFWindowParent1.Free;
     end;
 end;
 
@@ -139,7 +158,7 @@ begin
   FCanClose            := False;
   FClosing             := False;
   FPendingMsgID        := 0;
-  Chromium1.DefaultURL := AddressEdt.Text;
+  Chromium1.DefaultURL := AddressCb.Text;
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -251,7 +270,7 @@ end;
 procedure TForm1.GoBtnClick(Sender: TObject);
 begin
   // This will load the URL in the edit box
-  Chromium1.LoadURL(AddressEdt.Text);
+  Chromium1.LoadURL(AddressCb.Text);
 end;
 
 procedure TForm1.OverrideDeviceMetricsBtnClick(Sender: TObject);
@@ -294,10 +313,43 @@ end;
 procedure TForm1.OverrideUserAgentBtnClick(Sender: TObject);
 var
   TempParams : ICefDictionaryValue;
+  TempMetadataDict, TempBrandDict, TempFullVersionDict: ICefDictionaryValue;
+  TempBrandsArray, TempFullVersionListArray: ICefListValue;
 begin
   try
     TempParams := TCefDictionaryValueRef.New;
+
+    TempMetadataDict := TCefDictionaryValueRef.New;
+    TempBrandsArray := TCefListValueRef.New;
+    TempFullVersionListArray := TCefListValueRef.New;
+
+    TempBrandsArray.SetSize(1);
+    TempBrandDict := TCefDictionaryValueRef.New;
+    TempBrandDict.SetString('brand', 'Chromium');
+    TempBrandDict.SetString('version', '91');
+    TempBrandsArray.SetDictionary(0, TempBrandDict);
+
+
+    TempFullVersionListArray.SetSize(1);
+    TempFullVersionDict := TCefDictionaryValueRef.New;
+    TempFullVersionDict.SetString('brand', 'Chromium'); //Not:A
+    TempFullVersionDict.SetString('version', '91.0.4472.114');
+    TempFullVersionListArray.SetDictionary(0, TempFullVersionDict);
+
+    TempMetadataDict.SetList('brands', TempBrandsArray);
+    TempMetadataDict.SetList('fullVersionList', TempFullVersionListArray);
+    TempMetadataDict.SetString('fullVersion', '91.0.4472.114'); // Deprecated
+    TempMetadataDict.SetString('platform', 'Android'); //or Windows
+    TempMetadataDict.SetString('platformVersion', '12');
+    TempMetadataDict.SetString('architecture', 'arm');
+    TempMetadataDict.SetString('model', 'SM-F916N');
+    TempMetadataDict.SetBool('mobile', true);
+    TempMetadataDict.SetString('bitness', '32');
+
     TempParams.SetString('userAgent', UserAgentCb.Text);
+    // Setting the userAgentMetadata value is optional and can be omited.
+    // All the values in TempMetadataDict are just an example and they should be customized for each use case.
+    TempParams.SetDictionary('userAgentMetadata', TempMetadataDict);
 
     FPendingMsgID := DEVTOOLS_SETUSERAGENTOVERRIDE_MSGID;
     Chromium1.ExecuteDevToolsMethod(0, 'Emulation.setUserAgentOverride', TempParams);

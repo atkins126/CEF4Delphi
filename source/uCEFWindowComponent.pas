@@ -35,6 +35,7 @@ type
       FOnWindowDestroyed            : TOnWindowDestroyedEvent;
       FOnWindowActivationChanged    : TOnWindowActivationChangedEvent;
       FOnWindowBoundsChanged        : TOnWindowBoundsChangedEvent;
+      FOnWindowFullscreenTransition : TOnWindowFullscreenTransitionEvent;
       FOnGetParentWindow            : TOnGetParentWindowEvent;
       FOnIsWindowModalDialog        : TOnIsWindowModalDialogEvent;
       FOnGetInitialBounds           : TOnGetInitialBoundsEvent;
@@ -42,13 +43,15 @@ type
       FOnIsFrameless                : TOnIsFramelessEvent;
       FOnWithStandardWindowButtons  : TOnWithStandardWindowButtonsEvent;
       FOnGetTitlebarHeight          : TOnGetTitlebarHeightEvent;
+      FOnAcceptsFirstMouse          : TOnAcceptsFirstMouseEvent;
       FOnCanResize                  : TOnCanResizeEvent;
       FOnCanMaximize                : TOnCanMaximizeEvent;
       FOnCanMinimize                : TOnCanMinimizeEvent;
       FOnCanClose                   : TOnCanCloseEvent;
       FOnAccelerator                : TOnAcceleratorEvent;
       FOnKeyEvent                   : TOnWindowKeyEventEvent;
-      FOnWindowFullscreenTransition : TOnWindowFullscreenTransitionEvent;
+      FOnThemeColorsChanged         : TOnThemeColorsChangedEvent;
+      FOnGetWindowRuntimeStyle      : TOnGetWindowRuntimeStyleEvent;
 
       procedure DestroyView; override;
       procedure Initialize; override;
@@ -69,6 +72,7 @@ type
       function  GetDisplay : ICefDisplay;
       function  GetClientAreaBoundsInScreen : TCefRect;
       function  GetWindowHandle : TCefWindowHandle;
+      function  GetRuntimeStyle : TCefRuntimeStyle;
 
       procedure SetAlwaysOnTop(on_top: boolean);
       procedure SetFullscreen(fullscreen: boolean);
@@ -82,6 +86,7 @@ type
       procedure doOnWindowDestroyed(const window_: ICefWindow);
       procedure doOnWindowActivationChanged(const window_: ICefWindow; active: boolean);
       procedure doOnWindowBoundsChanged(const window_: ICefWindow; const new_bounds: TCefRect);
+      procedure doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
       procedure doOnGetParentWindow(const window_: ICefWindow; var is_menu, can_activate_menu: boolean; var aResult : ICefWindow);
       procedure doOnIsWindowModalDialog(const window_: ICefWindow; var aResult : boolean);
       procedure doOnGetInitialBounds(const window_: ICefWindow; var aResult : TCefRect);
@@ -89,13 +94,15 @@ type
       procedure doOnIsFrameless(const window_: ICefWindow; var aResult : boolean);
       procedure doOnWithStandardWindowButtons(const window_: ICefWindow; var aResult : boolean);
       procedure doOnGetTitlebarHeight(const window_: ICefWindow; var titlebar_height: Single; var aResult : boolean);
+      procedure doOnAcceptsFirstMouse(const window_: ICefWindow; var aResult: TCefState);
       procedure doOnCanResize(const window_: ICefWindow; var aResult : boolean);
       procedure doOnCanMaximize(const window_: ICefWindow; var aResult : boolean);
       procedure doOnCanMinimize(const window_: ICefWindow; var aResult : boolean);
       procedure doOnCanClose(const window_: ICefWindow; var aResult : boolean);
       procedure doOnAccelerator(const window_: ICefWindow; command_id: Integer; var aResult : boolean);
       procedure doOnKeyEvent(const window_: ICefWindow; const event: TCefKeyEvent; var aResult : boolean);
-      procedure doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
+      procedure doOnThemeColorsChanged(const window_: ICefWindow; chrome_theme: Integer);
+      procedure doOnGetWindowRuntimeStyle(var aResult: TCefRuntimeStyle);
 
       // ICefViewDelegateEvents
       procedure doCreateCustomView; override;
@@ -161,8 +168,9 @@ type
       /// <summary>
       /// <para>Add a View that will be overlayed on the Window contents with absolute
       /// positioning and high z-order. Positioning is controlled by |docking_mode|
-      /// as described below. The returned cef_overlay_controller_t object is used
-      /// to control the overlay. Overlays are hidden by default.</para>
+      /// as described below. Setting |can_activate| to true (1) will allow the
+      /// overlay view to receive input focus. The returned cef_overlay_controller_t
+      /// object is used to control the overlay. Overlays are hidden by default.</para>
       /// <para>With CEF_DOCKING_MODE_CUSTOM:</para>
       /// <code>
       ///   1. The overlay is initially hidden, sized to |view|'s preferred size,
@@ -186,7 +194,7 @@ type
       /// function last after all other child Views have been added so that the
       /// overlay displays as the top-most child of the Window.</para>
       /// </summary>
-      function  AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode): ICefOverlayController;
+      function  AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode; can_activate: boolean): ICefOverlayController;
       /// <summary>
       /// Show a menu with contents |menu_model|. |screen_point| specifies the menu
       /// position in screen coordinates. |anchor_position| specifies how the menu
@@ -251,6 +259,37 @@ type
       /// </summary>
       procedure RemoveAllAccelerators;
       /// <summary>
+      /// <para>Override a standard theme color or add a custom color associated with
+      /// |color_id|. See cef_color_ids.h for standard ID values. Recommended usage
+      /// is as follows:</para>
+      /// <code>
+      /// 1. Customize the default native/OS theme by calling SetThemeColor before
+      ///    showing the first Window. When done setting colors call
+      ///    ICefWindow.ThemeChanged to trigger ICefViewDelegate.OnThemeChanged
+      ///    notifications.
+      /// 2. Customize the current native/OS or Chrome theme after it changes by
+      ///    calling SetThemeColor from the ICefWindowDelegate.OnThemeColorsChanged
+      ///    callback. ICefViewDelegate.OnThemeChanged notifications will then be
+      ///    triggered automatically.
+      /// </code>
+      /// <para>The configured color will be available immediately via
+      /// ICefView.GetThemeColor and will be applied to each View in this
+      /// Window's component hierarchy when ICefViewDelegate.OnThemeChanged is
+      /// called. See OnThemeColorsChanged documentation for additional details.</para>
+      /// <para>Clients wishing to add custom colors should use |color_id| values >=
+      /// CEF_ChromeColorsEnd.</para>
+      /// </summary>
+      procedure SetThemeColor(color_id: integer; color: TCefColor);
+      /// <summary>
+      /// <para>Trigger ICefViewDelegate.OnThemeChanged callbacks for each View in
+      /// this Window's component hierarchy. Unlike a native/OS or Chrome theme
+      /// change this function does not reset theme colors to standard values and
+      /// does not result in a call to ICefWindowDelegate.OnThemeColorsChanged.</para>
+      /// <para>Do not call this function from ICefWindowDelegate.OnThemeColorsChanged
+      /// or ICefViewDelegate.OnThemeChanged.</para>
+      /// </summary>
+      procedure ThemeChanged;
+      /// <summary>
       /// Get the Window title.
       /// </summary>
       property Title                    : ustring            read GetTitle                     write SetTitle;
@@ -304,6 +343,11 @@ type
       /// Returns true (1) if the Window is minimized.
       /// </summary>
       property IsMinimized              : boolean            read GetIsMinimized;
+      /// <summary>
+      /// Returns the runtime style for this Window (ALLOY or CHROME). See
+      /// TCefRuntimeStyle documentation for details.
+      /// </summary>
+      property RuntimeStyle             : TCefRuntimeStyle   read GetRuntimeStyle;
 
     published
       /// <summary>
@@ -329,6 +373,16 @@ type
       /// screen coordinates.
       /// </summary>
       property OnWindowBoundsChanged        : TOnWindowBoundsChangedEvent        read FOnWindowBoundsChanged        write FOnWindowBoundsChanged;
+      /// <summary>
+      /// Called when |window| is transitioning to or from fullscreen mode. On MacOS
+      /// the transition occurs asynchronously with |is_competed| set to false (0)
+      /// when the transition starts and true (1) after the transition completes. On
+      /// other platforms the transition occurs synchronously with |is_completed|
+      /// set to true (1) after the transition completes. With the Alloy runtime you
+      /// must also implement ICefDisplayHandler.OnFullscreenModeChange to
+      /// handle fullscreen transitions initiated by browser content.
+      /// </summary>
+      property OnWindowFullscreenTransition : TOnWindowFullscreenTransitionEvent read FOnWindowFullscreenTransition write FOnWindowFullscreenTransition;
       /// <summary>
       /// Return the parent for |window| or NULL if the |window| does not have a
       /// parent. Windows with parents will not get a taskbar button. Set |is_menu|
@@ -381,6 +435,16 @@ type
       /// </summary>
       property OnGetTitlebarHeight          : TOnGetTitlebarHeightEvent          read FOnGetTitlebarHeight          write FOnGetTitlebarHeight;
       /// <summary>
+      /// <para>Return whether the view should accept the initial mouse-down event,
+      /// allowing it to respond to click-through behavior. If STATE_ENABLED is
+      /// returned, the view will be sent a mouseDown: message for an initial mouse-
+      /// down event, activating the view with one click, instead of clicking first
+      /// to make the window active and then clicking the view.</para>
+      /// <para>This function is only supported on macOS. For more details, refer to the
+      /// documentation of acceptsFirstMouse.</para>
+      /// </summary>
+      property OnAcceptsFirstMouse          : TOnAcceptsFirstMouseEvent          read FOnAcceptsFirstMouse          write FOnAcceptsFirstMouse;
+      /// <summary>
       /// Return true (1) if |window| can be resized.
       /// </summary>
       property OnCanResize                  : TOnCanResizeEvent                  read FOnCanResize                  write FOnCanResize;
@@ -410,15 +474,39 @@ type
       /// </summary>
       property OnKeyEvent                   : TOnWindowKeyEventEvent             read FOnKeyEvent                   write FOnKeyEvent;
       /// <summary>
-      /// Called when |window| is transitioning to or from fullscreen mode. On MacOS
-      /// the transition occurs asynchronously with |is_competed| set to false (0)
-      /// when the transition starts and true (1) after the transition completes. On
-      /// other platforms the transition occurs synchronously with |is_completed|
-      /// set to true (1) after the transition completes. With the Alloy runtime you
-      /// must also implement ICefDisplayHandler.OnFullscreenModeChange to
-      /// handle fullscreen transitions initiated by browser content.
+      /// <para>Called after the native/OS or Chrome theme for |window| has changed.
+      /// |chrome_theme| will be true (1) if the notification is for a Chrome theme.</para>
+      /// <para>Native/OS theme colors are configured globally and do not need to be
+      /// customized for each Window individually. An example of a native/OS theme
+      /// change that triggers this callback is when the user switches between dark
+      /// and light mode during application lifespan. Native/OS theme changes can be
+      /// disabled by passing the `--force-dark-mode` or `--force-light-mode`
+      /// command-line flag.</para>
+      /// <para>Chrome theme colors will be applied and this callback will be triggered
+      /// if/when a BrowserView is added to the Window's component hierarchy. Chrome
+      /// theme colors can be configured on a per-RequestContext basis using
+      /// ICefRequestContext.SetChromeColorScheme or (Chrome runtime only) by
+      /// visiting chrome://settings/manageProfile. Any theme changes using those
+      /// mechanisms will also trigger this callback. Chrome theme colors will be
+      /// persisted and restored from disk cache with the Chrome runtime, and with
+      /// the Alloy runtime if persist_user_preferences is set to true (1) via
+      /// CefSettings or ICefRequestContext Settings.</para>
+      /// <para>This callback is not triggered on Window creation so clients that wish to
+      /// customize the initial native/OS theme must call
+      /// ICefWindow.SetThemeColor and ICefWindow.ThemeChanged before showing
+      /// the first Window.</para>
+      /// <para>Theme colors will be reset to standard values before this callback is
+      /// called for the first affected Window. Call ICefWindow.SetThemeColor
+      /// from inside this callback to override a standard color or add a custom
+      /// color. ICefViewDelegate.OnThemeChanged will be called after this
+      /// callback for the complete |window| component hierarchy.</para>
       /// </summary>
-      property OnWindowFullscreenTransition : TOnWindowFullscreenTransitionEvent read FOnWindowFullscreenTransition write FOnWindowFullscreenTransition;
+      property OnThemeColorsChanged         : TOnThemeColorsChangedEvent         read FOnThemeColorsChanged         write FOnThemeColorsChanged;
+      /// <summary>
+      /// Optionally change the runtime style for this Window. See
+      /// TCefRuntimeStyle documentation for details.
+      /// </summary>
+      property OnGetWindowRuntimeStyle      : TOnGetWindowRuntimeStyleEvent      read FOnGetWindowRuntimeStyle      write FOnGetWindowRuntimeStyle;
   end;
 
 {$IFDEF FPC}
@@ -468,6 +556,7 @@ begin
   FOnWindowDestroyed            := nil;
   FOnWindowActivationChanged    := nil;
   FOnWindowBoundsChanged        := nil;
+  FOnWindowFullscreenTransition := nil;
   FOnGetParentWindow            := nil;
   FOnIsWindowModalDialog        := nil;
   FOnGetInitialBounds           := nil;
@@ -475,13 +564,15 @@ begin
   FOnIsFrameless                := nil;
   FOnWithStandardWindowButtons  := nil;
   FOnGetTitlebarHeight          := nil;
+  FOnAcceptsFirstMouse          := nil;
   FOnCanResize                  := nil;
   FOnCanMaximize                := nil;
   FOnCanMinimize                := nil;
   FOnCanClose                   := nil;
   FOnAccelerator                := nil;
   FOnKeyEvent                   := nil;
-  FOnWindowFullscreenTransition := nil;
+  FOnThemeColorsChanged         := nil;
+  FOnGetWindowRuntimeStyle      := nil;
 end;
 
 procedure TCEFWindowComponent.CreateTopLevelWindow;
@@ -572,6 +663,12 @@ begin
     FOnWindowBoundsChanged(self, window_, new_bounds);
 end;
 
+procedure TCEFWindowComponent.doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
+begin
+  if assigned(FOnWindowFullscreenTransition) then
+    FOnWindowFullscreenTransition(self, window_, is_completed);
+end;
+
 procedure TCEFWindowComponent.doOnGetParentWindow(const window_: ICefWindow; var is_menu, can_activate_menu: boolean; var aResult : ICefWindow);
 begin
   if assigned(FOnGetParentWindow) then
@@ -614,6 +711,12 @@ begin
     FOnGetTitlebarHeight(self, window_, titlebar_height, aResult);
 end;
 
+procedure TCEFWindowComponent.doOnAcceptsFirstMouse(const window_: ICefWindow; var aResult: TCefState);
+begin
+  if assigned(FOnAcceptsFirstMouse) then
+    FOnAcceptsFirstMouse(self, window_, aResult);
+end;
+
 procedure TCEFWindowComponent.doOnCanResize(const window_: ICefWindow; var aResult : boolean);
 begin
   if assigned(FOnCanResize) then
@@ -650,10 +753,18 @@ begin
     FOnKeyEvent(self, window_, event, aResult);
 end;
 
-procedure TCEFWindowComponent.doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
+procedure TCEFWindowComponent.doOnThemeColorsChanged(const window_: ICefWindow; chrome_theme: Integer);
 begin
-  if assigned(FOnWindowFullscreenTransition) then
-    FOnWindowFullscreenTransition(self, window_, is_completed);
+  if assigned(FOnThemeColorsChanged) then
+    FOnThemeColorsChanged(self, window_, chrome_theme);
+end;
+
+procedure TCEFWindowComponent.doOnGetWindowRuntimeStyle(var aResult: TCefRuntimeStyle);
+begin
+  aResult := CEF_RUNTIME_STYLE_DEFAULT;
+
+  if assigned(FOnGetWindowRuntimeStyle) then
+    FOnGetWindowRuntimeStyle(self, aResult);
 end;
 
 procedure TCEFWindowComponent.Show;
@@ -790,10 +901,10 @@ begin
     Result := nil;
 end;
 
-function TCEFWindowComponent.AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode): ICefOverlayController;
+function TCEFWindowComponent.AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode; can_activate: boolean): ICefOverlayController;
 begin
   if Initialized then
-    Result := FWindow.AddOverlayView(view, docking_mode)
+    Result := FWindow.AddOverlayView(view, docking_mode, can_activate)
    else
     Result := nil;
 end;
@@ -847,6 +958,14 @@ begin
   Result := TempHandle;
 end;
 
+function TCEFWindowComponent.GetRuntimeStyle : TCefRuntimeStyle;
+begin
+  if Initialized then
+    Result := FWindow.RuntimeStyle
+   else
+    Result := CEF_RUNTIME_STYLE_DEFAULT;
+end;
+
 procedure TCEFWindowComponent.SendKeyPress(key_code: Integer; event_flags: cardinal);
 begin
   if Initialized then FWindow.SendKeyPress(key_code, event_flags);
@@ -875,6 +994,16 @@ end;
 procedure TCEFWindowComponent.RemoveAllAccelerators;
 begin
   if Initialized then FWindow.RemoveAllAccelerators;
+end;
+
+procedure TCEFWindowComponent.SetThemeColor(color_id: integer; color: TCefColor);
+begin
+  if Initialized then FWindow.SetThemeColor(color_id, color);
+end;
+
+procedure TCEFWindowComponent.ThemeChanged;
+begin
+  if Initialized then FWindow.ThemeChanged;
 end;
 
 {$IFDEF FPC}

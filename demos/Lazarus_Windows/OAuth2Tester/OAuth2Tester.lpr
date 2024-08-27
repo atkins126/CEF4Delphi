@@ -18,8 +18,11 @@ uses
 
 {.$R *.res}
 
+{$R *.res}
+
 begin
-  GlobalCEFApp := TCefApplication.Create;
+  GlobalCEFApp := TCefApplication.Create;   
+  GlobalCEFApp.SetCurrentDir       := True;
 
   if GlobalCEFApp.StartMainProcess then
     begin

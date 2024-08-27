@@ -79,7 +79,8 @@ function  CefString(const str: PCefString): ustring; overload;
 function  CefUserFreeString(const str: ustring): PCefStringUserFree;
 procedure CefStringFree(const str: PCefString);
 function  CefStringFreeAndGet(const str: PCefStringUserFree): ustring;
-procedure CefStringSet(const str: PCefString; const value: ustring);
+procedure CefStringSet(const str: PCefString; const value: ustring); overload;
+procedure CefStringSet(const aDstStr, aSrcStr: TCefString); overload;
 procedure CefStringInitialize(const aCefString : PCefString); {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
 
 /// <summary>
@@ -294,21 +295,27 @@ function cef_string_utf16_copy(const src: PChar16; src_len: NativeUInt; output: 
 function cef_string_copy(const src: PCefChar; src_len: NativeUInt; output: PCefString): Integer;
 
 {$IFDEF MSWINDOWS}
-procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''; aExStyle : DWORD = 0);
-procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0);
-procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0);
+procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
+procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
+procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
 {$ENDIF}
 
 {$IFDEF MACOSX}
-procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''; aHidden : boolean = False);
-procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aHidden : boolean = False);
-procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aHidden : boolean = False);
+procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''; aHidden : boolean = False); deprecated;
+procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aHidden : boolean = False); deprecated;
+procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aHidden : boolean = False); deprecated;
 {$ENDIF}
 
 {$IFDEF LINUX}
-procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = '');
-procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = '');
-procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = '');
+procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''); deprecated;
+procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''); deprecated;
+procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''); deprecated;
+{$ENDIF}
+
+{$IFDEF ANDROID}
+procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
+procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
+procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = ''; aExStyle : DWORD = 0); deprecated;
 {$ENDIF}
 
 {$IFDEF MSWINDOWS}
@@ -747,6 +754,17 @@ function CefZipDirectory(const srcDir, destFile: ustring; includeHiddenFiles: Bo
 /// background.
 /// </summary>
 procedure CefLoadCRLSetsFile(const path : ustring);
+/// <summary>
+/// <para>Return a user-agent string.</para>
+/// <para>This function tries to replicate the BuildUserAgentFromOSAndProduct
+/// function in Chromium but it's safer to call the 'Browser.getVersion'
+/// DevTools method.</para>
+/// </summary>
+/// <remarks>
+/// <para><see href="https://source.chromium.org/chromium/chromium/src/+/main:content/common/user_agent.cc">Chromium source file: content/common/user_agent.cc (BuildUserAgentFromOSAndProduct)</see></para>
+/// <para><see href="https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-getVersion">See the Browser.getVersion article.</see></para>
+/// </remarks>
+function  GetDefaultCEFUserAgent : string;
 
 {$IFDEF MSWINDOWS}
 function  CefIsKeyDown(aWparam : WPARAM) : boolean;
@@ -760,9 +778,10 @@ procedure DropEffectToDragOperation(aEffect : Longint; var aAllowedOps : TCefDra
 procedure DragOperationToDropEffect(const aDragOperations : TCefDragOperations; var aEffect: Longint);
 
 function  GetWindowsMajorMinorVersion(var wMajorVersion, wMinorVersion : DWORD) : boolean;
+function  GetIsWow64Process2(var aProcessMachine, aNativeMachine : WORD) : boolean;
+function  IsWowProcess: boolean;
 function  RunningWindows10OrNewer : boolean;
 function  GetDPIForHandle(aHandle : HWND; var aDPI : UINT) : boolean;
-function  GetDefaultCEFUserAgent : string;
 {$IFDEF DELPHI14_UP}
 function  TouchPointToPoint(aHandle : HWND; const TouchPoint: TTouchInput): TPoint;
 function  GetDigitizerStatus(var aDigitizerStatus : TDigitizerStatus; aDPI : cardinal = 0) : boolean;
@@ -796,7 +815,22 @@ function CefGetDataURI(aData : pointer; aSize : integer; const aMimeType : ustri
 function ValidCefWindowHandle(aHandle : TCefWindowHandle) : boolean;
 procedure InitializeWindowHandle(var aHandle : TCefWindowHandle);
 
+/// <summary>
+/// Returns a command line switch value if it exists.
+/// </summary>
 function GetCommandLineSwitchValue(const aKey : string; var aValue : ustring) : boolean;
+/// <summary>
+/// Returns true if the command line switch has a "type" value.
+/// </summary>
+function IsCEFSubprocess : boolean;
+
+{$IFNDEF FPC}{$IFNDEF DELPHI7_UP}
+function PosEx(const SubStr, S: string; Offset: Cardinal = 1): Integer;
+{$ENDIF}{$ENDIF}
+/// <summary>
+/// Convert an editting command to string.
+/// </summary>
+function EditingCommandToString(aEditingCommand : TCefEditingCommand): ustring;
 
 implementation
 
@@ -804,7 +838,7 @@ uses
   {$IFDEF LINUX}{$IFDEF FMX}uCEFLinuxFunctions, Posix.Unistd, Posix.Stdio,{$ENDIF}{$ENDIF}
   {$IFDEF MACOSX}{$IFDEF FPC}CocoaAll,{$ELSE}Posix.Unistd, Posix.Stdio,{$ENDIF}{$ENDIF}
   uCEFApplicationCore, uCEFSchemeHandlerFactory, uCEFValue,
-  uCEFBinaryValue, uCEFStringList;
+  uCEFBinaryValue, uCEFStringList, uCEFWindowInfoWrapper;
 
 function CefColorGetA(color: TCefColor): Byte;
 begin
@@ -928,6 +962,12 @@ procedure CefStringSet(const str: PCefString; const value: ustring);
 begin
   if (str <> nil) and (GlobalCEFApp <> nil) and GlobalCEFApp.LibLoaded then
     cef_string_utf16_set(PWideChar(value), Length(value), str, Ord(True));
+end;
+
+procedure CefStringSet(const aDstStr, aSrcStr: TCefString);
+begin
+  if (GlobalCEFApp <> nil) and GlobalCEFApp.LibLoaded then
+    cef_string_utf16_set(aSrcStr.str, aSrcStr.length, @aDstStr, Ord(True));
 end;
 
 procedure CefStringInitialize(const aCefString : PCefString); {$IFDEF SUPPORTS_INLINE} inline; {$ENDIF}
@@ -1273,172 +1313,82 @@ end;
 {$IFDEF MSWINDOWS}
 procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring; aExStyle : DWORD);
 begin
-  aWindowInfo.ex_style                     := aExStyle;
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.style                        := WS_CHILD or WS_VISIBLE or WS_CLIPCHILDREN or WS_CLIPSIBLINGS or WS_TABSTOP;
-  aWindowInfo.bounds.x                     := aRect.left;
-  aWindowInfo.bounds.y                     := aRect.top;
-  aWindowInfo.bounds.width                 := aRect.right  - aRect.left;
-  aWindowInfo.bounds.height                := aRect.bottom - aRect.top;
-  aWindowInfo.parent_window                := aParent;
-  aWindowInfo.menu                         := 0;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  TCEFWindowInfoWrapper.AsChild(aWindowInfo, aParent, aRect);
+  aWindowInfo.ex_style    := aExStyle;
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 
 procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aExStyle : DWORD);
 begin
-  aWindowInfo.ex_style                     := aExStyle;
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.style                        := WS_OVERLAPPEDWINDOW or WS_CLIPCHILDREN or WS_CLIPSIBLINGS or WS_VISIBLE;
-  aWindowInfo.bounds.x                     := integer(CW_USEDEFAULT);
-  aWindowInfo.bounds.y                     := integer(CW_USEDEFAULT);
-  aWindowInfo.bounds.width                 := integer(CW_USEDEFAULT);
-  aWindowInfo.bounds.height                := integer(CW_USEDEFAULT);
-  aWindowInfo.parent_window                := aParent;
-  aWindowInfo.menu                         := 0;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  TCEFWindowInfoWrapper.AsPopup(aWindowInfo, aParent, aWindowName);
+  aWindowInfo.ex_style := aExStyle;
 end;
 
 procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aExStyle : DWORD);
 begin
-  aWindowInfo.ex_style                     := aExStyle;
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.style                        := 0;
-  aWindowInfo.bounds.x                     := 0;
-  aWindowInfo.bounds.y                     := 0;
-  aWindowInfo.bounds.width                 := 0;
-  aWindowInfo.bounds.height                := 0;
-  aWindowInfo.parent_window                := aParent;
-  aWindowInfo.menu                         := 0;
-  aWindowInfo.windowless_rendering_enabled := ord(True);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  TCEFWindowInfoWrapper.AsWindowless(aWindowInfo, aParent);
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 {$ENDIF}
 
 {$IFDEF MACOSX}
 procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring; aHidden : boolean);
 begin
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := aRect.left;
-  aWindowInfo.bounds.y                     := aRect.top;
-  aWindowInfo.bounds.width                 := aRect.right  - aRect.left;
-  aWindowInfo.bounds.height                := aRect.bottom - aRect.top;
-  aWindowInfo.hidden                       := Ord(aHidden);
-  aWindowInfo.parent_view                  := aParent;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  {$IFDEF FPC}
-  aWindowInfo.view                         := 0;
-  {$ELSE}
-  aWindowInfo.view                         := nil;
-  {$ENDIF}
+  TCEFWindowInfoWrapper.AsChild(aWindowInfo, aParent, aRect);
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 
 procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aHidden : boolean);
 begin
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := 0;
-  aWindowInfo.bounds.y                     := 0;
-  aWindowInfo.bounds.width                 := 0;
-  aWindowInfo.bounds.height                := 0;
-  aWindowInfo.hidden                       := Ord(aHidden);
-  aWindowInfo.parent_view                  := aParent;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  {$IFDEF FPC}
-  aWindowInfo.view                         := 0;
-  {$ELSE}
-  aWindowInfo.view                         := nil;
-  {$ENDIF}
+  // WindowInfoAsPopUp only exists for Windows. The macos version of cefclient
+  // calls WindowInfoAsChild with aParent set to NULL to create a popup window.
+  TCEFWindowInfoWrapper.AsChild(aWindowInfo, aParent, Rect(0, 0, 0, 0));
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 
 procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aHidden : boolean);
 begin
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := 0;
-  aWindowInfo.bounds.y                     := 0;
-  aWindowInfo.bounds.width                 := 0;
-  aWindowInfo.bounds.height                := 0;
-  aWindowInfo.hidden                       := Ord(aHidden);
-  aWindowInfo.parent_view                  := aParent;
-  aWindowInfo.windowless_rendering_enabled := ord(True);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  {$IFDEF FPC}
-  aWindowInfo.view                         := 0;
-  {$ELSE}
-  aWindowInfo.view                         := nil;
-  {$ENDIF}
+  TCEFWindowInfoWrapper.AsWindowless(aWindowInfo, aParent);
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 {$ENDIF}
 
 {$IFDEF LINUX}
 procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring = '');
-var
-  TempParent : TCefWindowHandle;
 begin
-  TempParent := aParent;
-  {$IFDEF FPC}
-    {$IFDEF LCLGTK2}
-    if ValidCefWindowHandle(aParent) and (PGtkWidget(aParent)^.window <> nil) then
-      TempParent := gdk_window_xwindow(PGtkWidget(aParent)^.window);
-    {$ENDIF}
-    {$IFDEF LCLGTK3}
-    if ValidCefWindowHandle(aParent) then
-      TempParent := gdk_x11_window_get_xid(TGtk3Container(aParent).Widget^.window);
-    {$ENDIF}
-  {$ENDIF}
-
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := aRect.left;
-  aWindowInfo.bounds.y                     := aRect.top;
-  aWindowInfo.bounds.width                 := aRect.right  - aRect.left;
-  aWindowInfo.bounds.height                := aRect.bottom - aRect.top;
-  aWindowInfo.parent_window                := TempParent;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  TCEFWindowInfoWrapper.AsChild(aWindowInfo, aParent, aRect);
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 
-// WindowInfoAsPopUp only exists for Windows. The Linux version of cefclient
-// calls WindowInfoAsChild with aParent set to NULL to create a popup window.
 procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = '');
 begin
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := 0;
-  aWindowInfo.bounds.y                     := 0;
-  aWindowInfo.bounds.width                 := 0;
-  aWindowInfo.bounds.height                := 0;
-  aWindowInfo.parent_window                := aParent;
-  aWindowInfo.windowless_rendering_enabled := ord(False);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  // WindowInfoAsPopUp only exists for Windows. The Linux version of cefclient
+  // calls WindowInfoAsChild with aParent set to NULL to create a popup window.
+  TCEFWindowInfoWrapper.AsChild(aWindowInfo, aParent, Rect(0, 0, 0, 0));
+  aWindowInfo.window_name := CefString(aWindowName);
 end;
 
 procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring = '');
 begin
-  aWindowInfo.window_name                  := CefString(aWindowName);
-  aWindowInfo.bounds.x                     := 0;
-  aWindowInfo.bounds.y                     := 0;
-  aWindowInfo.bounds.width                 := 0;
-  aWindowInfo.bounds.height                := 0;
-  aWindowInfo.parent_window                := aParent;
-  aWindowInfo.windowless_rendering_enabled := ord(True);
-  aWindowInfo.shared_texture_enabled       := ord(False);
-  aWindowInfo.external_begin_frame_enabled := ord(False);
-  aWindowInfo.window                       := 0;
+  TCEFWindowInfoWrapper.AsWindowless(aWindowInfo, aParent);
+  aWindowInfo.window_name := CefString(aWindowName);
+end;
+{$ENDIF}
+
+{$IFDEF ANDROID}
+procedure WindowInfoAsChild(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; aRect : TRect; const aWindowName : ustring; aExStyle : DWORD);
+begin
+  //
+end;
+
+procedure WindowInfoAsPopUp(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aExStyle : DWORD);
+begin
+  //
+end;
+
+procedure WindowInfoAsWindowless(var aWindowInfo : TCefWindowInfo; aParent : TCefWindowHandle; const aWindowName : ustring; aExStyle : DWORD);
+begin
+  //
 end;
 {$ENDIF}
 
@@ -1925,6 +1875,10 @@ begin
       TempList.Add(TempDir + 'vulkan-1.dll');
       TempList.Add(TempDir + 'libEGL.dll');
       TempList.Add(TempDir + 'libGLESv2.dll');
+      {$IFDEF WIN64}
+      TempList.Add(TempDir + 'dxcompiler.dll');
+      TempList.Add(TempDir + 'dxil.dll');
+      {$ENDIF}
       {$ENDIF}
       {$IFDEF LINUX}
       TempList.Add(TempDir + 'libEGL.so');
@@ -2748,6 +2702,47 @@ begin
     end;
 end;
 
+function GetDefaultCEFUserAgent : string;
+var
+  TempOS : string;
+  {$IFDEF MSWINDOWS}
+  TempMajorVer, TempMinorVer : DWORD;
+  {$ENDIF}
+begin
+  // See GetUserAgentPlatform() and BuildOSCpuInfo() in
+  // https://source.chromium.org/chromium/chromium/src/+/main:content/common/user_agent.cc
+  {$IFDEF MSWINDOWS}
+  TempOS := 'Windows NT ';
+
+  if GetWindowsMajorMinorVersion(TempMajorVer, TempMinorVer) then
+    TempOS := TempOS + inttostr(TempMajorVer) + '.' + inttostr(TempMinorVer)
+   else
+    TempOS := TempOS + '10.0'; // oldest Windows version supported by Chromium
+
+  if IsWowProcess then
+    TempOS := TempOS + '; WOW64'
+   else
+    {$IFDEF TARGET_64BITS}
+    TempOS := TempOS + '; Win64; x64';
+    {$ELSE}
+    TempOS := TempOS + '; Win32; x86';
+    {$ENDIF};
+  {$ENDIF}
+
+  {$IFDEF MACOSX}
+  TempOS := 'Macintosh; Intel Mac OS X 10_15_7';
+  {$ENDIF}
+
+  {$IFDEF LINUX}
+  TempOS := 'X11; Linux ' + {$IFDEF TARGET_64BITS}'x86_64'{$ELSE}'i686'{$ENDIF};
+  {$ENDIF}
+
+  Result  := 'Mozilla/5.0' + ' (' + TempOS + ') ' +
+             'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+             'Chrome/' + inttostr(CEF_CHROMEELF_VERSION_MAJOR) + '.0.0.0 ' +
+             'Safari/537.36';
+end;
+
 {$IFDEF MSWINDOWS}
 function CefIsKeyDown(aWparam : WPARAM) : boolean;
 begin
@@ -2949,6 +2944,51 @@ begin
   end;
 end;
 
+function GetIsWow64Process2(var aProcessMachine, aNativeMachine : WORD) : boolean;
+type
+  TIsWow64Process2Func = function(hProcess: THandle; ProcessMachine, NativeMachine : PWORD): BOOL; stdcall;
+var
+  TempHandle : THandle;
+  TempIsWow64Process2Func : TIsWow64Process2Func;
+begin
+  Result          := False;
+  aProcessMachine := 0;
+  aNativeMachine  := 0;
+
+  try
+    TempHandle := LoadLibrary(Kernel32DLL);
+
+    if (TempHandle <> 0) then
+      try
+        {$IFDEF FPC}Pointer({$ENDIF}TempIsWow64Process2Func{$IFDEF FPC}){$ENDIF} := GetProcAddress(TempHandle, 'IsWow64Process2');
+
+        Result := assigned(TempIsWow64Process2Func) and
+                  TempIsWow64Process2Func(GetCurrentProcess(), @aProcessMachine, @aNativeMachine);
+      finally
+        FreeLibrary(TempHandle);
+      end;
+  except
+    on e : exception do
+      if CustomExceptionHandler('GetIsWow64Process2', e) then raise;
+  end;
+end;
+
+function IsWowProcess: boolean;
+const
+  IMAGE_FILE_MACHINE_I386  = $014C;
+  IMAGE_FILE_MACHINE_AMD64 = $8664;
+var
+  Temp64bit : BOOL;
+  TempProcessMachine, TempNativeMachine : WORD;
+begin
+  if GetIsWow64Process2(TempProcessMachine, TempNativeMachine) then
+    Result := (TempProcessMachine = IMAGE_FILE_MACHINE_I386) and
+              (TempNativeMachine  = IMAGE_FILE_MACHINE_AMD64)
+   else
+    Result := ProcessUnderWow64(GetCurrentProcess(), @Temp64bit) and
+              Temp64bit;
+end;
+
 // GetDpiForWindow is only available in Windows 10 (version 1607) or newer
 function GetDPIForHandle(aHandle : HWND; var aDPI : UINT) : boolean;
 type
@@ -2988,36 +3028,6 @@ var
   TempMajorVer, TempMinorVer : DWORD;
 begin
   Result := GetWindowsMajorMinorVersion(TempMajorVer, TempMinorVer) and (TempMajorVer >= 10);
-end;
-
-function GetDefaultCEFUserAgent : string;
-var
-  TempOS, TempChromiumVersion : string;
-  TempMajorVer, TempMinorVer : DWORD;
-  Temp64bit : BOOL;
-begin
-  if GetWindowsMajorMinorVersion(TempMajorVer, TempMinorVer) and
-     (TempMajorVer >= 4) then
-    TempOS := 'Windows NT'
-   else
-    TempOS := 'Windows';
-
-  TempOS := TempOS + ' ' + inttostr(TempMajorVer) + '.' + inttostr(TempMinorVer);
-
-  if ProcessUnderWow64(GetCurrentProcess(), @Temp64bit) and Temp64bit then
-    TempOS := TempOS + '; WOW64';
-
-  if (GlobalCEFApp <> nil) then
-    TempChromiumVersion := GlobalCEFApp.ChromeVersion
-   else
-    TempChromiumVersion := inttostr(CEF_CHROMEELF_VERSION_MAJOR)   + '.' +
-                           inttostr(CEF_CHROMEELF_VERSION_MINOR)   + '.' +
-                           inttostr(CEF_CHROMEELF_VERSION_RELEASE) + '.' +
-                           inttostr(CEF_CHROMEELF_VERSION_BUILD);
-
-  Result  := 'Mozilla/5.0' + ' (' + TempOS + ') ' +
-             'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-             'Chrome/' + TempChromiumVersion + ' Safari/537.36';
 end;
 
 {$IFDEF DELPHI14_UP}
@@ -3357,6 +3367,175 @@ begin
       end
      else
       dec(i);
+end;
+
+function IsCEFSubprocess : boolean;
+var
+  TempValue : ustring;
+begin
+  Result := GetCommandLineSwitchValue('type', TempValue) and (length(TempValue) > 0);
+end;
+
+{$IFNDEF FPC}{$IFNDEF DELPHI7_UP}
+function PosEx(const SubStr, S: string; Offset: Cardinal = 1): Integer;
+var
+  TempString : string;
+begin
+  if Offset <= 1 then
+    Result := Pos(SubStr, S)
+   else
+    begin
+      TempString := copy(S, Offset, length(S));
+      Result     := Pos(SubStr, TempString);
+      if (Result > 0) then inc(Result, Offset - 1);
+    end;
+end;
+{$ENDIF}{$ENDIF}
+
+function EditingCommandToString(aEditingCommand : TCefEditingCommand): ustring;
+begin
+  case aEditingCommand of
+    ecAlignCenter                                  : Result := 'AlignCenter';
+    ecAlignJustified                               : Result := 'AlignJustified';
+    ecAlignLeft                                    : Result := 'AlignLeft';
+    ecAlignRight                                   : Result := 'AlignRight';
+    ecBackColor                                    : Result := 'BackColor';
+    ecBackwardDelete                               : Result := 'BackwardDelete';
+    ecBold                                         : Result := 'Bold';
+    ecCopy                                         : Result := 'Copy';
+    ecCreateLink                                   : Result := 'CreateLink';
+    ecCut                                          : Result := 'Cut';
+    ecDefaultParagraphSeparator                    : Result := 'DefaultParagraphSeparator';
+    ecDelete                                       : Result := 'Delete';
+    ecDeleteBackward                               : Result := 'DeleteBackward';
+    ecDeleteBackwardByDecomposingPreviousCharacter : Result := 'DeleteBackwardByDecomposingPreviousCharacter';
+    ecDeleteForward                                : Result := 'DeleteForward';
+    ecDeleteToBeginningOfLine                      : Result := 'DeleteToBeginningOfLine';
+    ecDeleteToBeginningOfParagraph                 : Result := 'DeleteToBeginningOfParagraph';
+    ecDeleteToEndOfLine                            : Result := 'DeleteToEndOfLine';
+    ecDeleteToEndOfParagraph                       : Result := 'DeleteToEndOfParagraph';
+    ecDeleteToMark                                 : Result := 'DeleteToMark';
+    ecDeleteWordBackward                           : Result := 'DeleteWordBackward';
+    ecDeleteWordForward                            : Result := 'DeleteWordForward';
+    ecFindString                                   : Result := 'FindString';
+    ecFontName                                     : Result := 'FontName';
+    ecFontSize                                     : Result := 'FontSize';
+    ecFontSizeDelta                                : Result := 'FontSizeDelta';
+    ecForeColor                                    : Result := 'ForeColor';
+    ecFormatBlock                                  : Result := 'FormatBlock';
+    ecForwardDelete                                : Result := 'ForwardDelete';
+    ecHiliteColor                                  : Result := 'HiliteColor';
+    ecIgnoreSpelling                               : Result := 'IgnoreSpelling';
+    ecIndent                                       : Result := 'Indent';
+    ecInsertBacktab                                : Result := 'InsertBacktab';
+    ecInsertHorizontalRule                         : Result := 'InsertHorizontalRule';
+    ecInsertHTML                                   : Result := 'InsertHTML';
+    ecInsertImage                                  : Result := 'InsertImage';
+    ecInsertLineBreak                              : Result := 'InsertLineBreak';
+    ecInsertNewline                                : Result := 'InsertNewline';
+    ecInsertNewlineInQuotedContent                 : Result := 'InsertNewlineInQuotedContent';
+    ecInsertOrderedList                            : Result := 'InsertOrderedList';
+    ecInsertParagraph                              : Result := 'InsertParagraph';
+    ecInsertTab                                    : Result := 'InsertTab';
+    ecInsertText                                   : Result := 'InsertText';
+    ecInsertUnorderedList                          : Result := 'InsertUnorderedList';
+    ecItalic                                       : Result := 'Italic';
+    ecJustifyCenter                                : Result := 'JustifyCenter';
+    ecJustifyFull                                  : Result := 'JustifyFull';
+    ecJustifyLeft                                  : Result := 'JustifyLeft';
+    ecJustifyNone                                  : Result := 'JustifyNone';
+    ecJustifyRight                                 : Result := 'JustifyRight';
+    ecMakeTextWritingDirectionLeftToRight          : Result := 'MakeTextWritingDirectionLeftToRight';
+    ecMakeTextWritingDirectionNatural              : Result := 'MakeTextWritingDirectionNatural';
+    ecMakeTextWritingDirectionRightToLeft          : Result := 'MakeTextWritingDirectionRightToLeft';
+    ecMoveBackward                                 : Result := 'MoveBackward';
+    ecMoveBackwardAndModifySelection               : Result := 'MoveBackwardAndModifySelection';
+    ecMoveDown                                     : Result := 'MoveDown';
+    ecMoveDownAndModifySelection                   : Result := 'MoveDownAndModifySelection';
+    ecMoveForward                                  : Result := 'MoveForward';
+    ecMoveForwardAndModifySelection                : Result := 'MoveForwardAndModifySelection';
+    ecMoveLeft                                     : Result := 'MoveLeft';
+    ecMoveLeftAndModifySelection                   : Result := 'MoveLeftAndModifySelection';
+    ecMovePageDown                                 : Result := 'MovePageDown';
+    ecMovePageDownAndModifySelection               : Result := 'MovePageDownAndModifySelection';
+    ecMovePageUp                                   : Result := 'MovePageUp';
+    ecMovePageUpAndModifySelection                 : Result := 'MovePageUpAndModifySelection';
+    ecMoveParagraphBackward                        : Result := 'MoveParagraphBackward';
+    ecMoveParagraphBackwardAndModifySelection      : Result := 'MoveParagraphBackwardAndModifySelection';
+    ecMoveParagraphForward                         : Result := 'MoveParagraphForward';
+    ecMoveParagraphForwardAndModifySelection       : Result := 'MoveParagraphForwardAndModifySelection';
+    ecMoveRight                                    : Result := 'MoveRight';
+    ecMoveRightAndModifySelection                  : Result := 'MoveRightAndModifySelection';
+    ecMoveToBeginningOfDocument                    : Result := 'MoveToBeginningOfDocument';
+    ecMoveToBeginningOfDocumentAndModifySelection  : Result := 'MoveToBeginningOfDocumentAndModifySelection';
+    ecMoveToBeginningOfLine                        : Result := 'MoveToBeginningOfLine';
+    ecMoveToBeginningOfLineAndModifySelection      : Result := 'MoveToBeginningOfLineAndModifySelection';
+    ecMoveToBeginningOfParagraph                   : Result := 'MoveToBeginningOfParagraph';
+    ecMoveToBeginningOfParagraphAndModifySelection : Result := 'MoveToBeginningOfParagraphAndModifySelection';
+    ecMoveToBeginningOfSentence                    : Result := 'MoveToBeginningOfSentence';
+    ecMoveToBeginningOfSentenceAndModifySelection  : Result := 'MoveToBeginningOfSentenceAndModifySelection';
+    ecMoveToEndOfDocument                          : Result := 'MoveToEndOfDocument';
+    ecMoveToEndOfDocumentAndModifySelection        : Result := 'MoveToEndOfDocumentAndModifySelection';
+    ecMoveToEndOfLine                              : Result := 'MoveToEndOfLine';
+    ecMoveToEndOfLineAndModifySelection            : Result := 'MoveToEndOfLineAndModifySelection';
+    ecMoveToEndOfParagraph                         : Result := 'MoveToEndOfParagraph';
+    ecMoveToEndOfParagraphAndModifySelection       : Result := 'MoveToEndOfParagraphAndModifySelection';
+    ecMoveToEndOfSentence                          : Result := 'MoveToEndOfSentence';
+    ecMoveToEndOfSentenceAndModifySelection        : Result := 'MoveToEndOfSentenceAndModifySelection';
+    ecMoveToLeftEndOfLine                          : Result := 'MoveToLeftEndOfLine';
+    ecMoveToLeftEndOfLineAndModifySelection        : Result := 'MoveToLeftEndOfLineAndModifySelection';
+    ecMoveToRightEndOfLine                         : Result := 'MoveToRightEndOfLine';
+    ecMoveToRightEndOfLineAndModifySelection       : Result := 'MoveToRightEndOfLineAndModifySelection';
+    ecMoveUp                                       : Result := 'MoveUp';
+    ecMoveUpAndModifySelection                     : Result := 'MoveUpAndModifySelection';
+    ecMoveWordBackward                             : Result := 'MoveWordBackward';
+    ecMoveWordBackwardAndModifySelection           : Result := 'MoveWordBackwardAndModifySelection';
+    ecMoveWordForward                              : Result := 'MoveWordForward';
+    ecMoveWordForwardAndModifySelection            : Result := 'MoveWordForwardAndModifySelection';
+    ecMoveWordLeft                                 : Result := 'MoveWordLeft';
+    ecMoveWordLeftAndModifySelection               : Result := 'MoveWordLeftAndModifySelection';
+    ecMoveWordRight                                : Result := 'MoveWordRight';
+    ecMoveWordRightAndModifySelection              : Result := 'MoveWordRightAndModifySelection';
+    ecOutdent                                      : Result := 'Outdent';
+    ecOverWrite                                    : Result := 'OverWrite';
+    ecPaste                                        : Result := 'Paste';
+    ecPasteAndMatchStyle                           : Result := 'PasteAndMatchStyle';
+    ecPasteGlobalSelection                         : Result := 'PasteGlobalSelection';
+    ecPrint                                        : Result := 'Print';
+    ecRedo                                         : Result := 'Redo';
+    ecRemoveFormat                                 : Result := 'RemoveFormat';
+    ecScrollLineDown                               : Result := 'ScrollLineDown';
+    ecScrollLineUp                                 : Result := 'ScrollLineUp';
+    ecScrollPageBackward                           : Result := 'ScrollPageBackward';
+    ecScrollPageForward                            : Result := 'ScrollPageForward';
+    ecScrollToBeginningOfDocument                  : Result := 'ScrollToBeginningOfDocument';
+    ecScrollToEndOfDocument                        : Result := 'ScrollToEndOfDocument';
+    ecSelectAll                                    : Result := 'SelectAll';
+    ecSelectLine                                   : Result := 'SelectLine';
+    ecSelectParagraph                              : Result := 'SelectParagraph';
+    ecSelectSentence                               : Result := 'SelectSentence';
+    ecSelectToMark                                 : Result := 'SelectToMark';
+    ecSelectWord                                   : Result := 'SelectWord';
+    ecSetMark                                      : Result := 'SetMark';
+    ecStrikethrough                                : Result := 'Strikethrough';
+    ecStyleWithCSS                                 : Result := 'StyleWithCSS';
+    ecSubscript                                    : Result := 'Subscript';
+    ecSuperscript                                  : Result := 'Superscript';
+    ecSwapWithMark                                 : Result := 'SwapWithMark';
+    ecToggleBold                                   : Result := 'ToggleBold';
+    ecToggleItalic                                 : Result := 'ToggleItalic';
+    ecToggleUnderline                              : Result := 'ToggleUnderline';
+    ecTranspose                                    : Result := 'Transpose';
+    ecUnderline                                    : Result := 'Underline';
+    ecUndo                                         : Result := 'Undo';
+    ecUnlink                                       : Result := 'Unlink';
+    ecUnscript                                     : Result := 'Unscript';
+    ecUnselect                                     : Result := 'Unselect';
+    ecUseCSS                                       : Result := 'UseCSS';
+    ecYank                                         : Result := 'Yank';
+    ecYankAndSelect                                : Result := 'YankAndSelect';
+    else                                             Result := '';
+  end;
 end;
 
 end.

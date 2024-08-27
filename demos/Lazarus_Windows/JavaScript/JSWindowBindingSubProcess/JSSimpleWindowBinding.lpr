@@ -15,8 +15,11 @@ uses
 // CEF3 needs to set the LARGEADDRESSAWARE flag which allows 32-bit processes to use up to 3GB of RAM.
 {$SetPEFlags $20}
 
+{$R *.res}
+
 begin
-  GlobalCEFApp := TCefApplication.Create;
+  GlobalCEFApp := TCefApplication.Create; 
+  GlobalCEFApp.SetCurrentDir       := True;
 
   // This is the same demo than the JSSimpleWindowBinding but using a different executable for the subprocesses.
   // Notice that GlobalCEFApp.OnContextCreated is now defined in the SubProcess.

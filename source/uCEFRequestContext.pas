@@ -175,6 +175,8 @@ type
       ///
       /// See https://developer.chrome.com/extensions for extension implementation
       /// and usage documentation.
+      ///
+      /// WARNING: This function is deprecated and will be removed in ~M127.
       /// </summary>
       procedure LoadExtension(const root_directory: ustring; const manifest: ICefDictionaryValue; const handler: ICefExtensionHandler);
 
@@ -183,6 +185,8 @@ type
       /// by |extension_id|. Other contexts sharing the same storage will also have
       /// access to the extension (see HasExtension). This function must be called
       /// on the browser process UI thread.
+      ///
+      /// WARNING: This function is deprecated and will be removed in ~M127.
       /// </summary>
       function  DidLoadExtension(const extension_id: ustring): boolean;
 
@@ -191,6 +195,8 @@ type
       /// |extension_id|. This may not be the context that was used to load the
       /// extension (see DidLoadExtension). This function must be called on the
       /// browser process UI thread.
+      ///
+      /// WARNING: This function is deprecated and will be removed in ~M127.
       /// </summary>
       function  HasExtension(const extension_id: ustring): boolean;
 
@@ -199,6 +205,8 @@ type
       /// HasExtension). |extension_ids| will be populated with the list of
       /// extension ID values. Returns true (1) on success. This function must be
       /// called on the browser process UI thread.
+      ///
+      /// WARNING: This function is deprecated and will be removed in ~M127.
       /// </summary>
       function  GetExtensions(const extension_ids: TStringList): boolean;
 
@@ -206,6 +214,8 @@ type
       /// Returns the extension matching |extension_id| or NULL if no matching
       /// extension is accessible in this context (see HasExtension). This function
       /// must be called on the browser process UI thread.
+      ///
+      /// WARNING: This function is deprecated and will be removed in ~M127.
       /// </summary>
       function  GetExtension(const extension_id: ustring): ICefExtension;
 
@@ -263,6 +273,33 @@ type
       /// https://source.chromium.org/search?q=ContentSettingsType::POPUPS
       /// </summary>
       procedure SetContentSetting(const requesting_url, top_level_url: ustring; content_type: TCefContentSettingTypes; value: TCefContentSettingValues);
+
+      /// <summary>
+      /// Sets the Chrome color scheme for all browsers that share this request
+      /// context. |variant| values of SYSTEM, LIGHT and DARK change the underlying
+      /// color mode (e.g. light vs dark). Other |variant| values determine how
+      /// |user_color| will be applied in the current color mode. If |user_color| is
+      /// transparent (0) the default color will be used.
+      /// </summary>
+      procedure SetChromeColorScheme(variant: TCefColorVariant; user_color: TCefColor);
+
+      /// <summary>
+      /// Returns the current Chrome color scheme mode (SYSTEM, LIGHT or DARK). Must
+      /// be called on the browser process UI thread.
+      /// </summary>
+      function GetChromeColorSchemeMode: TCefColorVariant;
+
+      /// <summary>
+      /// Returns the current Chrome color scheme color, or transparent (0) for the
+      /// default color. Must be called on the browser process UI thread.
+      /// </summary>
+      function GetChromeColorSchemeColor: TCefColor;
+
+      /// <summary>
+      /// Returns the current Chrome color scheme variant. Must be called on the
+      /// browser process UI thread.
+      /// </summary>
+      function GetChromeColorSchemeVariant: TCefColorVariant;
 
     public
       class function UnWrap(data: Pointer): ICefRequestContext; reintroduce;
@@ -507,6 +544,26 @@ begin
   TempRequestingURL := CefString(requesting_url);
   TempTopLevelURL   := CefString(top_level_url);
   PCefRequestContext(FData)^.set_content_setting(PCefRequestContext(FData), @TempRequestingURL, @TempTopLevelURL, content_type, value);
+end;
+
+procedure TCefRequestContextRef.SetChromeColorScheme(variant: TCefColorVariant; user_color: TCefColor);
+begin
+  PCefRequestContext(FData)^.set_chrome_color_scheme(PCefRequestContext(FData), variant, user_color);
+end;
+
+function TCefRequestContextRef.GetChromeColorSchemeMode: TCefColorVariant;
+begin
+  Result := PCefRequestContext(FData)^.get_chrome_color_scheme_mode(PCefRequestContext(FData));
+end;
+
+function TCefRequestContextRef.GetChromeColorSchemeColor: TCefColor;
+begin
+  Result := PCefRequestContext(FData)^.get_chrome_color_scheme_color(PCefRequestContext(FData));
+end;
+
+function TCefRequestContextRef.GetChromeColorSchemeVariant: TCefColorVariant;
+begin
+  Result := PCefRequestContext(FData)^.get_chrome_color_scheme_variant(PCefRequestContext(FData));
 end;
 
 function TCefRequestContextRef.RegisterSchemeHandlerFactory(const schemeName : ustring;

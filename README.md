@@ -3,19 +3,19 @@ CEF4Delphi is an open source project created by Salvador Díaz Fau to embed Chro
 
 CEF4Delphi is based on DCEF3 and fpCEF3. The original license of those projects still applies to CEF4Delphi. Read the license terms in the LICENSE.md file.
 
-CEF4Delphi uses CEF 120.1.9 which includes Chromium 120.0.6099.109. 
+CEF4Delphi uses CEF 127.3.5 which includes Chromium 127.0.6533.120. 
 
 The CEF binaries used by CEF4Delphi are available for download at Spotify :
-* [Windows   32 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_windows32.tar.bz2)
-* [Windows   64 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_windows64.tar.bz2)
-* [Linux x86 64 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_linux64.tar.bz2)
-* [Linux ARM 32 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_linuxarm.tar.bz2)
-* [Linux ARM 64 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_linuxarm64.tar.bz2)
-* [MacOS x86 64 bits](https://cef-builds.spotifycdn.com/cef_binary_120.1.9%2Bg3914241%2Bchromium-120.0.6099.109_macosx64.tar.bz2)
+* [Windows   32 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_windows32.tar.bz2)
+* [Windows   64 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_windows64.tar.bz2)
+* [Linux x86 64 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_linux64.tar.bz2)
+* [Linux ARM 32 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_linuxarm.tar.bz2)
+* [Linux ARM 64 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_linuxarm64.tar.bz2)
+* [MacOS x86 64 bits](https://cef-builds.spotifycdn.com/cef_binary_127.3.5%2Bg114ea2a%2Bchromium-127.0.6533.120_macosx64.tar.bz2)
 
-CEF4Delphi was developed and tested on Delphi 12.0 and it has been tested in Delphi 7, Delphi XE, Delphi 10, Delphi 11 and Lazarus 2.2.6/FPC 3.2.2. CEF4Delphi includes VCL, FireMonkey (FMX) and Lazarus components.
+CEF4Delphi was developed and tested on Delphi 12.1 and it has been tested in Delphi 6, Delphi XE, Delphi 10, Delphi 11 and Lazarus 3.4/FPC 3.2.2. CEF4Delphi includes VCL, FireMonkey (FMX) and Lazarus components.
 
-CEF4Delphi demos have been tested in Windows 10, Windows 11, Linux Mint 20.3 and Raspberry Pi OS.
+CEF4Delphi demos have been tested in Windows 10, Windows 11, Linux Mint 22 and Raspberry Pi OS.
 
 ## Links
 * [Installation instructions and more information about CEF4Delphi](https://www.briskbard.com/index.php?lang=en&pageid=cef)
@@ -43,6 +43,8 @@ Delphinus-Support
 
 ## Related projects
 * [WebView4Delphi](https://github.com/salvadordf/WebView4Delphi)
+* [WebUI4Delphi](https://github.com/salvadordf/WebUI4Delphi)
+* [WebUI4CSharp](https://github.com/salvadordf/WebUI4CSharp)
 * [DCEF3](https://github.com/hgourvest/dcef3) 
 * [fpCEF3](https://github.com/dliw/fpCEF3)
 * [CEF](https://bitbucket.org/chromiumembedded/cef/)
@@ -67,5 +69,5 @@ Delphinus-Support
 
 ## Attribution
 * [Fugue & Diagona icons](http://yusukekamiyamane.com/)
-* [FatCow Farm-Fresh Web Icons](https://www.fatcow.com/free-icons)
+* [FatCow Farm-Fresh Web Icons](https://github.com/gammasoft/fatcow)
 * [Material Design Icons](https://github.com/google/material-design-icons) 

@@ -12,8 +12,11 @@ uses
 // to use up to 3GB of RAM.
 {$SetPEFlags $20}
 
+{$R *.res}
+
 begin
-  GlobalCEFApp                  := TCefApplicationCore.Create;
+  GlobalCEFApp                  := TCefApplicationCore.Create;  
+  GlobalCEFApp.SetCurrentDir    := True;
 
   // The main process and the subprocess *MUST* have the same GlobalCEFApp
   // properties and events, specially FrameworkDirPath, ResourcesDirPath,

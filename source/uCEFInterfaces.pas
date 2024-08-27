@@ -40,6 +40,7 @@ type
   ICefTask = interface;
   ICefTaskRunner = interface;
   ICefFileDialogCallback = interface;
+  ICefUnresponsiveProcessCallback = interface;
   ICefPrintHandler = interface;
   ICefPrintDialogCallback = interface;
   ICefPrintJobCallback = interface;
@@ -127,11 +128,11 @@ type
   ICefSharedProcessMessageBuilder = interface;
   ICefBrowserViewDelegate = interface;
   ICefMenuButtonPressedLock = interface;
+  ICefRequestContextHandler = interface;
 
   TCefv8ValueArray         = array of ICefv8Value;
   TCefX509CertificateArray = array of ICefX509Certificate;
   TCefBinaryValueArray     = array of ICefBinaryValue;
-  TCefFrameIdentifierArray = array of int64;
   TCefPostDataElementArray = array of ICefPostDataElement;
   TCefMediaRouteArray      = array of ICefMediaRoute;
   TCefMediaSinkArray       = array of ICefMediaSink;
@@ -285,6 +286,7 @@ type
     procedure doOnAlreadyRunningAppRelaunch(const commandLine: ICefCommandLine; const current_directory: ustring; var aResult: boolean);
     procedure doOnScheduleMessagePumpWork(const delayMs: Int64);
     procedure doGetDefaultClient(var aClient : ICefClient);
+    procedure doGetDefaultRequestContextHandler(var aRequestContextHandler : ICefRequestContextHandler);
 
     // ICefResourceBundleHandler
     function  doGetLocalizedString(stringid: Integer; var stringVal: ustring): Boolean;
@@ -357,7 +359,7 @@ type
 
     // ICefDownloadHandler
     function  doOnCanDownload(const browser: ICefBrowser; const url, request_method: ustring): boolean;
-    procedure doOnBeforeDownload(const browser: ICefBrowser; const downloadItem: ICefDownloadItem; const suggestedName: ustring; const callback: ICefBeforeDownloadCallback);
+    function  doOnBeforeDownload(const browser: ICefBrowser; const downloadItem: ICefDownloadItem; const suggestedName: ustring; const callback: ICefBeforeDownloadCallback): boolean;
     procedure doOnDownloadUpdated(const browser: ICefBrowser; const downloadItem: ICefDownloadItem; const callback: ICefDownloadItemCallback);
 
     // ICefJsDialogHandler
@@ -381,7 +383,9 @@ type
     function  doOnCertificateError(const browser: ICefBrowser; certError: TCefErrorcode; const requestUrl: ustring; const sslInfo: ICefSslInfo; const callback: ICefCallback): Boolean;
     function  doOnSelectClientCertificate(const browser: ICefBrowser; isProxy: boolean; const host: ustring; port: integer; certificatesCount: NativeUInt; const certificates: TCefX509CertificateArray; const callback: ICefSelectClientCertificateCallback): boolean;
     procedure doOnRenderViewReady(const browser: ICefBrowser);
-    procedure doOnRenderProcessTerminated(const browser: ICefBrowser; status: TCefTerminationStatus);
+    function  doOnRenderProcessUnresponsive(const browser: ICefBrowser; const callback: ICefUnresponsiveProcessCallback): boolean;
+    procedure doOnRenderProcessResponsive(const browser: ICefBrowser);
+    procedure doOnRenderProcessTerminated(const browser: ICefBrowser; status: TCefTerminationStatus; error_code: integer; const error_string: ustring);
     procedure doOnDocumentAvailableInMainFrame(const browser: ICefBrowser);
 
     // ICefResourceRequestHandler
@@ -398,7 +402,7 @@ type
     function  doCanSaveCookie(const browser: ICefBrowser; const frame: ICefFrame; const request: ICefRequest; const response: ICefResponse; const cookie: PCefCookie): boolean;
 
     // ICefDialogHandler
-    function  doOnFileDialog(const browser: ICefBrowser; mode: TCefFileDialogMode; const title, defaultFilePath: ustring; const acceptFilters: TStrings; const callback: ICefFileDialogCallback): Boolean;
+    function  doOnFileDialog(const browser: ICefBrowser; mode: TCefFileDialogMode; const title, defaultFilePath: ustring; const acceptFilters, accept_extensions, accept_descriptions: TStrings; const callback: ICefFileDialogCallback): Boolean;
 
     // ICefRenderHandler
     procedure doOnGetAccessibilityHandler(var aAccessibilityHandler : ICefAccessibilityHandler);
@@ -409,7 +413,7 @@ type
     procedure doOnPopupShow(const browser: ICefBrowser; show: Boolean);
     procedure doOnPopupSize(const browser: ICefBrowser; const rect: PCefRect);
     procedure doOnPaint(const browser: ICefBrowser; type_: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; const buffer: Pointer; width, height: Integer);
-    procedure doOnAcceleratedPaint(const browser: ICefBrowser; type_: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; shared_handle: Pointer);
+    procedure doOnAcceleratedPaint(const browser: ICefBrowser; type_: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; const info: PCefAcceleratedPaintInfo);
     procedure doGetTouchHandleSize(const browser: ICefBrowser; orientation: TCefHorizontalAlignment; var size: TCefSize);
     procedure doOnTouchHandleStateChanged(const browser: ICefBrowser; const state: TCefTouchHandleState);
     function  doOnStartDragging(const browser: ICefBrowser; const dragData: ICefDragData; allowedOps: TCefDragOperations; x, y: Integer): Boolean;
@@ -593,6 +597,7 @@ type
     procedure doOnLayoutChanged(const view: ICefView; new_bounds: TCefRect);
     procedure doOnFocus(const view: ICefView);
     procedure doOnBlur(const view: ICefView);
+    procedure doOnThemeChanged(const view: ICefView);
 
     // Custom
     procedure doCreateCustomView;
@@ -622,6 +627,7 @@ type
     procedure doOnGetChromeToolbarType(const browser_view: ICefBrowserView; var aChromeToolbarType: TCefChromeToolbarType);
     procedure doOnUseFramelessWindowForPictureInPicture(const browser_view: ICefBrowserView; var aResult: boolean);
     procedure doOnGestureCommand(const browser_view: ICefBrowserView; gesture_command: TCefGestureCommand; var aResult : boolean);
+    procedure doOnGetBrowserRuntimeStyle(var aResult : TCefRuntimeStyle);
   end;
 
   /// <summary>
@@ -658,6 +664,7 @@ type
     procedure doOnWindowDestroyed(const window_: ICefWindow);
     procedure doOnWindowActivationChanged(const window_: ICefWindow; active: boolean);
     procedure doOnWindowBoundsChanged(const window_: ICefWindow; const new_bounds: TCefRect);
+    procedure doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
     procedure doOnGetParentWindow(const window_: ICefWindow; var is_menu, can_activate_menu: boolean; var aResult : ICefWindow);
     procedure doOnIsWindowModalDialog(const window_: ICefWindow; var aResult : boolean);
     procedure doOnGetInitialBounds(const window_: ICefWindow; var aResult : TCefRect);
@@ -665,13 +672,15 @@ type
     procedure doOnIsFrameless(const window_: ICefWindow; var aResult : boolean);
     procedure doOnWithStandardWindowButtons(const window_: ICefWindow; var aResult : boolean);
     procedure doOnGetTitlebarHeight(const window_: ICefWindow; var titlebar_height: Single; var aResult : boolean);
+    procedure doOnAcceptsFirstMouse(const window_: ICefWindow; var aResult: TCefState);
     procedure doOnCanResize(const window_: ICefWindow; var aResult : boolean);
     procedure doOnCanMaximize(const window_: ICefWindow; var aResult : boolean);
     procedure doOnCanMinimize(const window_: ICefWindow; var aResult : boolean);
     procedure doOnCanClose(const window_: ICefWindow; var aResult : boolean);
     procedure doOnAccelerator(const window_: ICefWindow; command_id: Integer; var aResult : boolean);
     procedure doOnKeyEvent(const window_: ICefWindow; const event: TCefKeyEvent; var aResult : boolean);
-    procedure doOnWindowFullscreenTransition(const window_: ICefWindow; is_completed: boolean);
+    procedure doOnThemeColorsChanged(const window_: ICefWindow; chrome_theme: Integer);
+    procedure doOnGetWindowRuntimeStyle(var aResult: TCefRuntimeStyle);
   end;
 
   {*
@@ -1292,12 +1301,18 @@ type
     /// Returns the extension hosted in this browser or NULL if no extension is
     /// hosted. See ICefRequestContext.LoadExtension for details.
     /// </summary>
+    /// <remarks>
+    /// <para>WARNING: This API is deprecated and will be removed in ~M127.</para>
+    /// </remarks>
     function  GetExtension : ICefExtension;
     /// <summary>
     /// Returns true (1) if this browser is hosting an extension background
     /// script. Background hosts do not have a window and are not displayable. See
     /// ICefRequestContext.LoadExtension for details.
     /// </summary>
+    /// <remarks>
+    /// <para>WARNING: This API is deprecated and will be removed in ~M127.</para>
+    /// </remarks>
     function  IsBackgroundHost : boolean;
     /// <summary>
     /// Set whether the browser's audio is muted.
@@ -1349,6 +1364,25 @@ type
     /// </remarks>
     procedure ExecuteChromeCommand(command_id: integer; disposition: TCefWindowOpenDisposition);
     /// <summary>
+    /// Returns true (1) if the render process associated with this browser is
+    /// currently unresponsive as indicated by a lack of input event processing
+    /// for at least 15 seconds. To receive associated state change notifications
+    /// and optionally handle an unresponsive render process implement
+    /// ICefRequestHandler.OnRenderProcessUnresponsive.
+    /// </summary>
+    /// <remarks>
+    /// <para>This function can only be called on the CEF UI thread.</para>
+    /// </remarks>
+    function IsRenderProcessUnresponsive : boolean;
+    /// <summary>
+    /// Returns the runtime style for this browser (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    /// <remarks>
+    /// <para>This function can only be called on the CEF UI thread.</para>
+    /// </remarks>
+    function GetRuntimeStyle : TCefRuntimeStyle;
+    /// <summary>
     /// Returns the hosted browser object.
     /// </summary>
     property Browser                    : ICefBrowser              read GetBrowser;
@@ -1373,9 +1407,11 @@ type
     property ZoomLevel                  : Double                   read GetZoomLevel                 write SetZoomLevel;
     /// <summary>
     /// Get the default zoom level. This value will be 0.0 by default but can be
-    /// configured with the Chrome runtime. This function can only be called on
-    /// the UI thread.
+    /// configured with the Chrome runtime.
     /// </summary>
+    /// <remarks>
+    /// <para>This property can only be used on the CEF UI thread.</para>
+    /// </remarks>
     property DefaultZoomLevel           : Double                   read GetDefaultZoomLevel;
     /// <summary>
     /// Returns the request context for this browser.
@@ -1388,6 +1424,14 @@ type
     /// sent.
     /// </summary>
     property VisibleNavigationEntry     : ICefNavigationEntry      read GetVisibleNavigationEntry;
+    /// <summary>
+    /// Returns the runtime style for this browser (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    /// <remarks>
+    /// <para>This property can only be used on the CEF UI thread.</para>
+    /// </remarks>
+    property RuntimeStyle               : TCefRuntimeStyle         read GetRuntimeStyle;
   end;
 
   /// <summary>
@@ -1533,11 +1577,11 @@ type
     /// <summary>
     /// Returns the frame with the specified identifier, or NULL if not found.
     /// </summary>
-    function  GetFrameByident(const identifier: Int64): ICefFrame;
+    function  GetFrameByIdentifier(const identifier: ustring): ICefFrame;
     /// <summary>
     /// Returns the frame with the specified name, or NULL if not found.
     /// </summary>
-    function  GetFrame(const name: ustring): ICefFrame;
+    function  GetFrameByName(const name: ustring): ICefFrame;
     /// <summary>
     /// Returns the number of frames that currently exist.
     /// </summary>
@@ -1545,7 +1589,7 @@ type
     /// <summary>
     /// Returns the identifiers of all existing frames.
     /// </summary>
-    function  GetFrameIdentifiers(var aFrameCount : NativeUInt; var aFrameIdentifierArray : TCefFrameIdentifierArray) : boolean;
+    function  GetFrameIdentifiers(var aFrameIdentifiers : TStrings) : boolean;
     /// <summary>
     /// Returns the names of all existing frames.
     /// </summary>
@@ -1682,161 +1726,161 @@ type
   /// </remarks>
   ICefRequest = interface(ICefBaseRefCounted)
     ['{FB4718D3-7D13-4979-9F4C-D7F6C0EC592A}']
-    ///
+    /// <summary>
     /// Returns true (1) if this object is read-only.
-    ///
+    /// </summary>
     function  IsReadOnly: Boolean;
-    ///
+    /// <summary>
     /// Get the fully qualified URL.
-    ///
+    /// </summary>
     function  GetUrl: ustring;
-    ///
+    /// <summary>
     /// Set the fully qualified URL.
-    ///
+    /// </summary>
     procedure SetUrl(const value: ustring);
-    ///
+    /// <summary>
     /// Get the request function type. The value will default to POST if post data
     /// is provided and GET otherwise.
-    ///
+    /// </summary>
     function  GetMethod: ustring;
-    ///
+    /// <summary>
     /// Set the request function type.
-    ///
+    /// </summary>
     procedure SetMethod(const value: ustring);
-    ///
+    /// <summary>
     /// Set the referrer URL and policy. If non-NULL the referrer URL must be
     /// fully qualified with an HTTP or HTTPS scheme component. Any username,
     /// password or ref component will be removed.
-    ///
+    /// </summary>
     procedure SetReferrer(const referrerUrl: ustring; policy: TCefReferrerPolicy);
-    ///
+    /// <summary>
     /// Get the referrer URL.
-    ///
+    /// </summary>
     function  GetReferrerUrl: ustring;
-    ///
+    /// <summary>
     /// Get the referrer policy.
-    ///
+    /// </summary>
     function  GetReferrerPolicy: TCefReferrerPolicy;
-    ///
+    /// <summary>
     /// Get the post data.
-    ///
+    /// </summary>
     function  GetPostData: ICefPostData;
-    ///
+    /// <summary>
     /// Set the post data.
-    ///
+    /// </summary>
     procedure SetPostData(const value: ICefPostData);
-    ///
+    /// <summary>
     /// Get the header values. Will not include the Referer value if any.
-    ///
+    /// </summary>
     procedure GetHeaderMap(const HeaderMap: ICefStringMultimap);
-    ///
+    /// <summary>
     /// Set the header values. If a Referer value exists in the header map it will
     /// be removed and ignored.
-    ///
+    /// </summary>
     procedure SetHeaderMap(const HeaderMap: ICefStringMultimap);
-    ///
+    /// <summary>
     /// Returns the first header value for |name| or an NULL string if not found.
     /// Will not return the Referer value if any. Use GetHeaderMap instead if
     /// |name| might have multiple values.
-    ///
+    /// </summary>
     function  GetHeaderByName(const name: ustring): ustring;
-    ///
+    /// <summary>
     /// Set the header |name| to |value|. If |overwrite| is true (1) any existing
     /// values will be replaced with the new value. If |overwrite| is false (0)
     /// any existing values will not be overwritten. The Referer value cannot be
     /// set using this function.
-    ///
+    /// </summary>
     procedure SetHeaderByName(const name, value: ustring; overwrite: boolean);
-    ///
+    /// <summary>
     /// Get the flags used in combination with ICefUrlRequest. See
     /// TCefUrlRequestFlags for supported values.
-    ///
+    /// </summary>
     function  GetFlags: TCefUrlRequestFlags;
-    ///
+    /// <summary>
     /// Set the flags used in combination with ICefUrlRequest.  See
     /// TCefUrlRequestFlags for supported values.
-    ///
+    /// </summary>
     procedure SetFlags(flags: TCefUrlRequestFlags);
-    ///
+    /// <summary>
     /// Get the URL to the first party for cookies used in combination with
     /// ICefUrlRequest.
-    ///
+    /// </summary>
     function  GetFirstPartyForCookies: ustring;
-    ///
+    /// <summary>
     /// Set the URL to the first party for cookies used in combination with
     /// ICefUrlRequest.
-    ///
+    /// </summary>
     procedure SetFirstPartyForCookies(const url: ustring);
-    ///
+    /// <summary>
     /// Set all values at one time. This method corresponds to TCefRequest.set_ and cef_request_t.set
-    ///
+    /// </summary>
     procedure Assign(const url, method: ustring; const postData: ICefPostData; const headerMap: ICefStringMultimap);
-    ///
+    /// <summary>
     /// Get the resource type for this request. Only available in the browser
     /// process.
-    ///
+    /// </summary>
     function  GetResourceType: TCefResourceType;
-    ///
+    /// <summary>
     /// Get the transition type for this request. Only available in the browser
     /// process and only applies to requests that represent a main frame or sub-
     /// frame navigation.
-    ///
+    /// </summary>
     function  GetTransitionType: TCefTransitionType;
-    ///
+    /// <summary>
     /// Returns the globally unique identifier for this request or 0 if not
     /// specified. Can be used by ICefResourceRequestHandler implementations
     /// in the browser process to track a single request across multiple
     /// callbacks.
-    ///
+    /// </summary>
     function  GetIdentifier: UInt64;
-    ///
+    /// <summary>
     /// Get the fully qualified URL.
-    ///
+    /// </summary>
     property Url                  : ustring               read GetUrl                    write SetUrl;
-    ///
+    /// <summary>
     /// Get the request function type. The value will default to POST if post data
     /// is provided and GET otherwise.
-    ///
+    /// </summary>
     property Method               : ustring               read GetMethod                 write SetMethod;
-    ///
+    /// <summary>
     /// Get the referrer URL.
-    ///
+    /// </summary>
     property ReferrerUrl          : ustring               read GetReferrerUrl;
-    ///
+    /// <summary>
     /// Get the referrer policy.
-    ///
+    /// </summary>
     property ReferrerPolicy       : TCefReferrerPolicy    read GetReferrerPolicy;
-    ///
+    /// <summary>
     /// Get the post data.
-    ///
+    /// </summary>
     property PostData             : ICefPostData          read GetPostData               write SetPostData;
-    ///
+    /// <summary>
     /// Get the flags used in combination with ICefUrlRequest. See
     /// TCefUrlRequestFlags for supported values.
-    ///
+    /// </summary>
     property Flags                : TCefUrlRequestFlags   read GetFlags                  write SetFlags;
-    ///
+    /// <summary>
     /// Get the URL to the first party for cookies used in combination with
     /// ICefUrlRequest.
-    ///
+    /// </summary>
     property FirstPartyForCookies : ustring               read GetFirstPartyForCookies   write SetFirstPartyForCookies;
-    ///
+    ///  <summary>
     /// Get the resource type for this request. Only available in the browser
     /// process.
-    ///
+    ///  </summary>
     property ResourceType         : TCefResourceType      read GetResourceType;
-    ///
+    /// <summary>
     /// Get the transition type for this request. Only available in the browser
     /// process and only applies to requests that represent a main frame or sub-
     /// frame navigation.
-    ///
+    /// </summary>
     property TransitionType       : TCefTransitionType    read GetTransitionType;
-    ///
+    /// <summary>
     /// Returns the globally unique identifier for this request or 0 if not
     /// specified. Can be used by ICefResourceRequestHandler implementations
     /// in the browser process to track a single request across multiple
     /// callbacks.
-    ///
+    /// </summary>
     property Identifier           : UInt64                read GetIdentifier;
   end;
 
@@ -1962,10 +2006,10 @@ type
     /// </summary>
     function  GetName: ustring;
     /// <summary>
-    /// Returns the globally unique identifier for this frame or < 0 if the
+    /// Returns the globally unique identifier for this frame or empty if the
     /// underlying frame does not yet exist.
     /// </summary>
-    function  GetIdentifier: Int64;
+    function  GetIdentifier: ustring;
     /// <summary>
     /// Returns the parent of this frame or NULL if this is the main (top-level)
     /// frame.
@@ -2042,10 +2086,10 @@ type
     /// </summary>
     property Parent     : ICefFrame   read GetParent;
     /// <summary>
-    /// Returns the globally unique identifier for this frame or < 0 if the
+    /// Returns the globally unique identifier for this frame or empty if the
     /// underlying frame does not yet exist.
     /// </summary>
-    property Identifier : int64       read GetIdentifier;
+    property Identifier : ustring     read GetIdentifier;
   end;
 
   /// <summary>
@@ -2670,12 +2714,13 @@ type
     function  CanDownload(const browser: ICefBrowser; const url, request_method: ustring): boolean;
     /// <summary>
     /// Called before a download begins. |suggested_name| is the suggested name
-    /// for the download file. By default the download will be canceled. Execute
-    /// |callback| either asynchronously or in this function to continue the
-    /// download if desired. Do not keep a reference to |download_item| outside of
-    /// this function.
+    /// for the download file. Return true (1) and execute |callback| either
+    /// asynchronously or in this function to continue or cancel the download.
+    /// Return false (0) to proceed with default handling (cancel with Alloy
+    /// style, download shelf with Chrome style). Do not keep a reference to
+    /// |download_item| outside of this function.
     /// </summary>
-    procedure OnBeforeDownload(const browser: ICefBrowser; const downloadItem: ICefDownloadItem; const suggestedName: ustring; const callback: ICefBeforeDownloadCallback);
+    function  OnBeforeDownload(const browser: ICefBrowser; const downloadItem: ICefDownloadItem; const suggestedName: ustring; const callback: ICefBeforeDownloadCallback): boolean;
     /// <summary>
     /// Called when a download's status or progress information has been updated.
     /// This may be called multiple times before and after OnBeforeDownload.
@@ -3316,7 +3361,7 @@ type
     /// function is called incorrectly or an exception is thrown. For read-only
     /// values this function will return true (1) even though assignment failed.
     /// </summary>
-    function SetValueByAccessor(const key: ustring; settings: TCefV8AccessControls; attribute: TCefV8PropertyAttributes): Boolean;
+    function SetValueByAccessor(const key: ustring; attribute: TCefV8PropertyAttributes): Boolean;
     /// <summary>
     /// Read the keys for the object's values into the specified vector. Integer-
     /// based keys will also be returned as strings.
@@ -4347,7 +4392,7 @@ type
     /// </summary>
     procedure OnRouteStateChanged(const route: ICefMediaRoute; state: TCefMediaRouteConnectionState);
     /// <summary>
-    /// A message was recieved over |route|. |message| is only valid for the scope
+    /// A message was received over |route|. |message| is only valid for the scope
     /// of this callback and should be copied if necessary.
     /// </summary>
     procedure OnRouteMessageReceived(const route: ICefMediaRoute; const message_: ustring);
@@ -4639,13 +4684,22 @@ type
     /// </summary>
     procedure OnScheduleMessagePumpWork(const delayMs: Int64);
     /// <summary>
-    /// Return the default client for use with a newly created browser window. If
-    /// null is returned the browser will be unmanaged (no callbacks will be
-    /// executed for that browser) and application shutdown will be blocked until
-    /// the browser window is closed manually. This function is currently only
-    /// used with the chrome runtime.
+    /// Return the default client for use with a newly created browser window
+    /// (TCefBrowser object). If null is returned the TCefBrowser will be
+    /// unmanaged (no callbacks will be executed for that TCefBrowser) and
+    /// application shutdown will be blocked until the browser window is closed
+    /// manually. This function is currently only used with the Chrome runtime
+    /// when creating new browser windows via Chrome UI.
     /// </summary>
     procedure GetDefaultClient(var aClient : ICefClient);
+    /// <summary>
+    /// Return the default handler for use with a new user or incognito profile
+    /// (TCefRequestContext object). If null is returned the
+    /// TCefRequestContext will be unmanaged (no callbacks will be executed for
+    /// that TCefRequestContext). This function is currently only used with the
+    /// Chrome runtime when creating new browser windows via Chrome UI.
+    /// </summary>
+    procedure GetDefaultRequestContextHandler(var aRequestContextHandler : ICefRequestContextHandler);
     /// <summary>
     /// Custom procedure to clear all references.
     /// </summary>
@@ -4974,7 +5028,7 @@ type
     /// request return false (0).
     /// </summary>
     /// <remarks>
-    /// WARNING: This function is deprecated. Use Open instead.
+    /// <para>WARNING: This function is deprecated. Use Open instead.</para>
     /// </remarks>
     function  ProcessRequest(const request: ICefRequest; const callback: ICefCallback): boolean;
     /// <summary>
@@ -5025,7 +5079,7 @@ type
     /// the data is available. To indicate response completion return false (0).
     /// </summary>
     /// <remarks>
-    /// WARNING: This function is deprecated. Use Skip and Read instead.
+    /// <para>WARNING: This function is deprecated. Use Skip and Read instead.</para>
     /// </remarks>
     function  ReadResponse(const dataOut: Pointer; bytesToRead: Integer; var bytesRead: Integer; const callback: ICefCallback): boolean;
     /// <summary>
@@ -5552,28 +5606,30 @@ type
     /// <summary>
     /// Sets the font list for the specified |command_id|. If |font_list| is NULL
     /// the system font will be used. Returns true (1) on success. The format is
-    /// "<FONT_FAMILY_LIST>,[STYLES] <SIZE>", where: - FONT_FAMILY_LIST is a
-    /// comma-separated list of font family names, - STYLES is an optional space-
-    /// separated list of style names
+    /// "<FONT_FAMILY_LIST>,[STYLES] <SIZE>", where:
+    /// - FONT_FAMILY_LIST is a comma-separated list of font family names,
+    /// - STYLES is an optional space-separated list of style names
     ///   (case-sensitive "Bold" and "Italic" are supported), and
     /// - SIZE is an integer font size in pixels with the suffix "px".
     ///
-    /// Here are examples of valid font description strings: - "Arial, Helvetica,
-    /// Bold Italic 14px" - "Arial, 14px"
+    /// Here are examples of valid font description strings:
+    /// - "Arial, Helvetica, Bold Italic 14px"
+    /// - "Arial, 14px"
     /// </summary>
     function SetFontList(commandId: Integer; const fontList: ustring): Boolean;
     /// <summary>
     /// Sets the font list for the specified |index|. Specify an |index| value of
     /// -1 to set the default font. If |font_list| is NULL the system font will be
     /// used. Returns true (1) on success. The format is
-    /// "<FONT_FAMILY_LIST>,[STYLES] <SIZE>", where: - FONT_FAMILY_LIST is a
-    /// comma-separated list of font family names, - STYLES is an optional space-
-    /// separated list of style names
+    /// "<FONT_FAMILY_LIST>,[STYLES] <SIZE>", where:
+    /// - FONT_FAMILY_LIST is a comma-separated list of font family names,
+    /// - STYLES is an optional space-separated list of style names
     ///   (case-sensitive "Bold" and "Italic" are supported), and
     /// - SIZE is an integer font size in pixels with the suffix "px".
     ///
-    /// Here are examples of valid font description strings: - "Arial, Helvetica,
-    /// Bold Italic 14px" - "Arial, 14px"
+    /// Here are examples of valid font description strings:
+    /// - "Arial, Helvetica, Bold Italic 14px"
+    /// - "Arial, 14px"
     /// </summary>
     function SetFontListAt(index: Integer; const fontList: ustring): Boolean;
   end;
@@ -6163,7 +6219,7 @@ type
     /// </summary>
     procedure OnAfterCreated(const browser: ICefBrowser);
     /// <summary>
-    /// Called when a browser has recieved a request to close. This may result
+    /// Called when a browser has received a request to close. This may result
     /// directly from a call to ICefBrowserHost.*CloseBrowser or indirectly
     /// if the browser is parented to a top-level window created by CEF and the
     /// user attempts to close that window (by clicking the 'X', for example). The
@@ -6347,6 +6403,7 @@ type
   /// loading.
   /// </summary>
   /// <remarks>
+  /// <para>WARNING: This API is deprecated and will be removed in ~M127.</para>
   /// <para><see cref="uCEFTypes|TCefExtensionHandler">Implements TCefExtensionHandler</see></para>
   /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_extension_handler_capi.h">CEF source file: /include/capi/cef_extension_handler_capi.h (cef_extension_handler_t)</see></para>
   /// </remarks>
@@ -6440,6 +6497,7 @@ type
   /// otherwise indicated.
   /// </summary>
   /// <remarks>
+  /// <para>WARNING: This API is deprecated and will be removed in ~M127.</para>
   /// <para><see cref="uCEFTypes|TCefExtension">Implements TCefExtension</see></para>
   /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_extension_capi.h">CEF source file: /include/capi/cef_extension_capi.h (cef_extension_t)</see></para>
   /// </remarks>
@@ -6590,7 +6648,7 @@ type
     /// error text and |failedUrl| is the URL that failed to load. See
     /// net\base\net_error_list.h for complete descriptions of the error codes.
     /// </summary>
-    procedure OnLoadError(const browser: ICefBrowser; const frame: ICefFrame; errorCode: Integer; const errorText, failedUrl: ustring);
+    procedure OnLoadError(const browser: ICefBrowser; const frame: ICefFrame; errorCode: TCefErrorCode; const errorText, failedUrl: ustring);
     /// <summary>
     /// Custom procedure to clear all references.
     /// </summary>
@@ -6607,7 +6665,41 @@ type
   /// </remarks>
   ICefResponseFilter = interface(ICefBaseRefCounted)
     ['{5013BC3C-F1AE-407A-A571-A4C6B1D6831E}']
+    /// <summary>
+    /// Initialize the response filter. Will only be called a single time. The
+    /// filter will not be installed if this function returns false (0).
+    /// </summary>
     function InitFilter: Boolean;
+    /// <summary>
+    /// <para>Called to filter a chunk of data. Expected usage is as follows:</para>
+    /// <code>
+    ///  1. Read input data from |data_in| and set |data_in_read| to the number of
+    ///     bytes that were read up to a maximum of |data_in_size|. |data_in| will
+    ///     be NULL if |data_in_size| is zero.
+    ///  2. Write filtered output data to |data_out| and set |data_out_written| to
+    ///     the number of bytes that were written up to a maximum of
+    ///     |data_out_size|. If no output data was written then all data must be
+    ///     read from |data_in| (user must set |data_in_read| = |data_in_size|).
+    ///  3. Return RESPONSE_FILTER_DONE if all output data was written or
+    ///     RESPONSE_FILTER_NEED_MORE_DATA if output data is still pending.
+    /// </code>
+    /// <para>This function will be called repeatedly until the input buffer has been
+    /// fully read (user sets |data_in_read| = |data_in_size|) and there is no
+    /// more input data to filter (the resource response is complete). This
+    /// function may then be called an additional time with an NULL input buffer
+    /// if the user filled the output buffer (set |data_out_written| =
+    /// |data_out_size|) and returned RESPONSE_FILTER_NEED_MORE_DATA to indicate
+    /// that output data is still pending.</para>
+    /// <para>Calls to this function will stop when one of the following conditions is
+    /// met:</para>
+    /// <code>
+    ///  1. There is no more input data to filter (the resource response is
+    ///     complete) and the user sets |data_out_written| = 0 or returns
+    ///     RESPONSE_FILTER_DONE to indicate that all data has been written, or;
+    ///  2. The user returns RESPONSE_FILTER_ERROR to indicate an error.
+    /// </code>
+    /// <para>Do not keep a reference to the buffers passed to this function.</para>
+    /// </summary>
     function Filter(data_in: Pointer; data_in_size: NativeUInt; var data_in_read: NativeUInt; data_out: Pointer; data_out_size : NativeUInt; var data_out_written: NativeUInt): TCefResponseFilterStatus;
   end;
 
@@ -6712,10 +6804,40 @@ type
     /// </summary>
     procedure OnRenderViewReady(const browser: ICefBrowser);
     /// <summary>
-    /// Called on the browser process UI thread when the render process terminates
-    /// unexpectedly. |status| indicates how the process terminated.
+    /// Called on the browser process UI thread when the render process is
+    /// unresponsive as indicated by a lack of input event processing for at least
+    /// 15 seconds. Return false (0) for the default behavior which is an
+    /// indefinite wait with the Alloy runtime or display of the "Page
+    /// unresponsive" dialog with the Chrome runtime. Return true (1) and don't
+    /// execute the callback for an indefinite wait without display of the Chrome
+    /// runtime dialog. Return true (1) and call
+    /// ICefUnresponsiveProcessCallback.Wait either in this function or at a
+    /// later time to reset the wait timer, potentially triggering another call to
+    /// this function if the process remains unresponsive. Return true (1) and
+    /// call ICefUnresponsiveProcessCallback.Terminate either in this
+    /// function or at a later time to terminate the unresponsive process,
+    /// resulting in a call to OnRenderProcessTerminated.
+    /// OnRenderProcessResponsive will be called if the process becomes responsive
+    /// after this function is called. This functionality depends on the hang
+    /// monitor which can be disabled by passing the `--disable-hang-monitor`
+    /// command-line flag or setting GlobalCEFApp.DisableHangMonitor to True.
     /// </summary>
-    procedure OnRenderProcessTerminated(const browser: ICefBrowser; status: TCefTerminationStatus);
+    function  OnRenderProcessUnresponsive(const browser: ICefBrowser; const callback: ICefUnresponsiveProcessCallback): boolean;
+    /// <summary>
+    /// Called on the browser process UI thread when the render process becomes
+    /// responsive after previously being unresponsive. See documentation on
+    /// OnRenderProcessUnresponsive.
+    /// </summary>
+    procedure OnRenderProcessResponsive(const browser: ICefBrowser);
+    /// <summary>
+    /// Called on the browser process UI thread when the render process terminates
+    /// unexpectedly. |status| indicates how the process terminated. |error_code|
+    /// and |error_string| represent the error that would be displayed in Chrome's
+    /// "Aw, Snap!" view. Possible |error_code| values include TCefResultCode
+    /// non-normal exit values and platform-specific crash values (for example, a
+    /// Posix signal or Windows hardware exception).
+    /// </summary>
+    procedure OnRenderProcessTerminated(const browser: ICefBrowser; status: TCefTerminationStatus; error_code: integer; const error_string: ustring);
     /// <summary>
     /// Called on the browser process UI thread when the window.document object of
     /// the main frame has been created.
@@ -7271,20 +7393,27 @@ type
   ICefDialogHandler = interface(ICefBaseRefCounted)
     ['{7763F4B2-8BE1-4E80-AC43-8B825850DC67}']
     /// <summary>
-    /// Called to run a file chooser dialog. |mode| represents the type of dialog
+    /// <para>Called to run a file chooser dialog. |mode| represents the type of dialog
     /// to display. |title| to the title to be used for the dialog and may be NULL
-    /// to show the default title ("Open" or "Save" depending on the mode).
-    /// |default_file_path| is the path with optional directory and/or file name
-    /// component that should be initially selected in the dialog.
-    /// |accept_filters| are used to restrict the selectable file types and may
-    /// any combination of (a) valid lower-cased MIME types (e.g. "text/*" or
-    /// "image/*"), (b) individual file extensions (e.g. ".txt" or ".png"), or (c)
-    /// combined description and file extension delimited using "|" and ";" (e.g.
-    /// "Image Types|.png;.gif;.jpg"). To display a custom dialog return true (1)
-    /// and execute |callback| either inline or at a later time. To display the
-    /// default dialog return false (0).
+    /// to show the default title ("Open" or "Save" depending on the mode).</para>
+    /// <para>|default_file_path| is the path with optional directory and/or file name
+    /// component that should be initially selected in the dialog.</para>
+    /// <para>|accept_filters| are used to restrict the selectable file types and may be
+    /// any combination of valid lower-cased MIME types (e.g. "text/*" or
+    /// "image/*") and individual file extensions (e.g. ".txt" or ".png").</para>
+    /// <para>|accept_extensions| provides the semicolon-delimited expansion of MIME
+    /// types to file extensions (if known, or NULL string otherwise).</para>
+    /// <para>|accept_descriptions| provides the descriptions for MIME types (if known,
+    /// or NULL string otherwise). For example, the "image/*" mime type might have
+    /// extensions ".png;.jpg;.bmp;..." and description "Image Files".</para>
+    /// <para>|accept_filters|, |accept_extensions| and |accept_descriptions| will all
+    /// be the same size. To display a custom dialog return true (1) and execute
+    /// |callback| either inline or at a later time. To display the default dialog
+    /// return false (0). If this function returns false (0) it may be called an
+    /// additional time for the same dialog (both before and after MIME type
+    /// expansion).</para>
     /// </summary>
-    function OnFileDialog(const browser: ICefBrowser; mode: TCefFileDialogMode; const title, defaultFilePath: ustring; const acceptFilters: TStrings; const callback: ICefFileDialogCallback): Boolean;
+    function OnFileDialog(const browser: ICefBrowser; mode: TCefFileDialogMode; const title, defaultFilePath: ustring; const acceptFilters, accept_extensions, accept_descriptions: TStrings; const callback: ICefFileDialogCallback): Boolean;
     /// <summary>
     /// Custom procedure to clear all references.
     /// </summary>
@@ -7357,15 +7486,23 @@ type
     /// </summary>
     procedure OnPaint(const browser: ICefBrowser; kind: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; const buffer: Pointer; width, height: Integer);
     /// <summary>
-    /// Called when an element has been rendered to the shared texture handle.
+    /// <para>Called when an element has been rendered to the shared texture handle.
     /// |type| indicates whether the element is the view or the popup widget.
     /// |dirtyRects| contains the set of rectangles in pixel coordinates that need
-    /// to be repainted. |shared_handle| is the handle for a D3D11 Texture2D that
-    /// can be accessed via ID3D11Device using the OpenSharedResource function.
-    /// This function is only called when TCefWindowInfo.shared_texture_enabled
-    /// is set to true (1), and is currently only supported on Windows.
+    /// to be repainted. |info| contains the shared handle; on Windows it is a
+    /// HANDLE to a texture that can be opened with D3D11 OpenSharedResource, on
+    /// macOS it is an IOSurface pointer that can be opened with Metal or OpenGL,
+    /// and on Linux it contains several planes, each with an fd to the underlying
+    /// system native buffer.</para>
+    /// <para>The underlying implementation uses a pool to deliver frames. As a result,
+    /// the handle may differ every frame depending on how many frames are in-
+    /// progress. The handle's resource cannot be cached and cannot be accessed
+    /// outside of this callback. It should be reopened each time this callback is
+    /// executed and the contents should be copied to a texture owned by the
+    /// client application. The contents of |info| will be released back to the
+    /// pool after this callback returns.</para>
     /// </summary>
-    procedure OnAcceleratedPaint(const browser: ICefBrowser; kind: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; shared_handle: Pointer);
+    procedure OnAcceleratedPaint(const browser: ICefBrowser; kind: TCefPaintElementType; dirtyRectsCount: NativeUInt; const dirtyRects: PCefRectArray; const info: PCefAcceleratedPaintInfo);
     /// <summary>
     /// Called to retrieve the size of the touch handle for the specified
     /// |orientation|.
@@ -7696,6 +7833,25 @@ type
     /// Cancel the file selection.
     /// </summary>
     procedure Cancel;
+  end;
+
+  /// <summary>
+  /// Callback structure for asynchronous handling of an unresponsive process.
+  /// </summary>
+  /// <remarks>
+  /// <para><see cref="uCEFTypes|TCefUnresponsiveProcessCallback">Implements TCefUnresponsiveProcessCallback</see></para>
+  /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_unresponsive_process_callback_capi.h">CEF source file: /include/capi/cef_unresponsive_process_callback_capi.h (cef_unresponsive_process_callback_t)</see></para>
+  /// </remarks>
+  ICefUnresponsiveProcessCallback = interface(ICefBaseRefCounted)
+    ['{3E4F2B66-5AAF-4906-B946-C114D0E43C13}']
+    /// <summary>
+    /// Reset the timeout for the unresponsive process.
+    /// </summary>
+    procedure Wait;
+    /// <summary>
+    /// Terminate the unresponsive process.
+    /// </summary>
+    procedure Terminate;
   end;
 
   /// <summary>
@@ -8147,6 +8303,8 @@ type
     ///
     /// See https://developer.chrome.com/extensions for extension implementation
     /// and usage documentation.
+    ///
+    /// WARNING: This function is deprecated and will be removed in ~M127.
     /// </summary>
     procedure LoadExtension(const root_directory: ustring; const manifest: ICefDictionaryValue; const handler: ICefExtensionHandler);
     /// <summary>
@@ -8154,6 +8312,8 @@ type
     /// by |extension_id|. Other contexts sharing the same storage will also have
     /// access to the extension (see HasExtension). This function must be called
     /// on the browser process UI thread.
+    ///
+    /// WARNING: This function is deprecated and will be removed in ~M127.
     /// </summary>
     function  DidLoadExtension(const extension_id: ustring): boolean;
     /// <summary>
@@ -8161,6 +8321,8 @@ type
     /// |extension_id|. This may not be the context that was used to load the
     /// extension (see DidLoadExtension). This function must be called on the
     /// browser process UI thread.
+    ///
+    /// WARNING: This function is deprecated and will be removed in ~M127.
     /// </summary>
     function  HasExtension(const extension_id: ustring): boolean;
     /// <summary>
@@ -8168,12 +8330,16 @@ type
     /// HasExtension). |extension_ids| will be populated with the list of
     /// extension ID values. Returns true (1) on success. This function must be
     /// called on the browser process UI thread.
+    ///
+    /// WARNING: This function is deprecated and will be removed in ~M127.
     /// </summary>
     function  GetExtensions(const extension_ids: TStringList): boolean;
     /// <summary>
     /// Returns the extension matching |extension_id| or NULL if no matching
     /// extension is accessible in this context (see HasExtension). This function
     /// must be called on the browser process UI thread.
+    ///
+    /// WARNING: This function is deprecated and will be removed in ~M127.
     /// </summary>
     function  GetExtension(const extension_id: ustring): ICefExtension;
     /// <summary>
@@ -8227,16 +8393,54 @@ type
     /// </summary>
     procedure SetContentSetting(const requesting_url, top_level_url: ustring; content_type: TCefContentSettingTypes; value: TCefContentSettingValues);
     /// <summary>
+    /// Sets the Chrome color scheme for all browsers that share this request
+    /// context. |variant| values of SYSTEM, LIGHT and DARK change the underlying
+    /// color mode (e.g. light vs dark). Other |variant| values determine how
+    /// |user_color| will be applied in the current color mode. If |user_color| is
+    /// transparent (0) the default color will be used.
+    /// </summary>
+    procedure SetChromeColorScheme(variant: TCefColorVariant; user_color: TCefColor);
+    /// <summary>
+    /// Returns the current Chrome color scheme mode (SYSTEM, LIGHT or DARK). Must
+    /// be called on the browser process UI thread.
+    /// </summary>
+    function GetChromeColorSchemeMode: TCefColorVariant;
+    /// <summary>
+    /// Returns the current Chrome color scheme color, or transparent (0) for the
+    /// default color. Must be called on the browser process UI thread.
+    /// </summary>
+    function GetChromeColorSchemeColor: TCefColor;
+    /// <summary>
+    /// Returns the current Chrome color scheme variant. Must be called on the
+    /// browser process UI thread.
+    /// </summary>
+    function GetChromeColorSchemeVariant: TCefColorVariant;
+    /// <summary>
     /// Returns the cache path for this object. If NULL an "incognito mode" in-
     /// memory cache is being used.
     /// </summary>
-    property  CachePath        : ustring         read GetCachePath;
+    property  CachePath                : ustring          read GetCachePath;
     /// <summary>
     /// Returns true (1) if this object is the global context. The global context
     /// is used by default when creating a browser or URL request with a NULL
     /// context argument.
     /// </summary>
-    property  IsGlobalContext  : boolean         read IsGlobal;
+    property  IsGlobalContext          : boolean          read IsGlobal;
+    /// <summary>
+    /// Returns the current Chrome color scheme mode (SYSTEM, LIGHT or DARK). Must
+    /// be called on the browser process UI thread.
+    /// </summary>
+    property  ChromeColorSchemeMode    : TCefColorVariant read GetChromeColorSchemeMode;
+    /// <summary>
+    /// Returns the current Chrome color scheme color, or transparent (0) for the
+    /// default color. Must be called on the browser process UI thread.
+    /// </summary>
+    property  ChromeColorSchemeColor   : TCefColor        read GetChromeColorSchemeColor;
+    /// <summary>
+    /// Returns the current Chrome color scheme variant. Must be called on the
+    /// browser process UI thread.
+    /// </summary>
+    property  ChromeColorSchemeVariant : TCefColorVariant read GetChromeColorSchemeVariant;
   end;
 
   /// <summary>
@@ -9843,13 +10047,25 @@ type
     /// </summary>
     procedure RequestFocus;
     /// <summary>
-    /// Sets the background color for this View.
+    /// Sets the background color for this View. The background color will be
+    /// automatically reset when ICefViewDelegate.OnThemeChanged is called.
     /// </summary>
     procedure SetBackgroundColor(color: TCefColor);
     /// <summary>
-    /// Returns the background color for this View.
+    /// Returns the background color for this View. If the background color is
+    /// unset then the current `GetThemeColor(CEF_ColorPrimaryBackground)` value
+    /// will be returned. If this View belongs to an overlay (created with
+    /// ICefWindow.AddOverlayView), and the background color is unset, then a
+    /// value of transparent (0) will be returned.
     /// </summary>
     function  GetBackgroundColor : TCefColor;
+    /// <summary>
+    /// Returns the current theme color associated with |color_id|, or the
+    /// placeholder color (red) if unset. See cef_color_ids.h for standard ID
+    /// values. Standard colors can be overridden and custom colors can be added
+    /// using ICefWindow.SetThemeColor.
+    /// </summary>
+    function  GetThemeColor(color_id: integer): TCefColor;
     /// <summary>
     /// Convert |point| from this View's coordinate system to DIP screen
     /// coordinates. This View must belong to a Window when calling this function.
@@ -9966,7 +10182,11 @@ type
     /// </summary>
     property AccessibilityFocusable : boolean          read IsAccessibilityFocusable;
     /// <summary>
-    /// Returns the background color for this View.
+    /// Returns the background color for this View. If the background color is
+    /// unset then the current `GetThemeColor(CEF_ColorPrimaryBackground)` value
+    /// will be returned. If this View belongs to an overlay (created with
+    /// ICefWindow.AddOverlayView), and the background color is unset, then a
+    /// value of transparent (0) will be returned.
     /// </summary>
     property BackgroundColor        : TCefColor        read GetBackgroundColor         write SetBackgroundColor;
     /// <summary>
@@ -10069,6 +10289,24 @@ type
     /// Called when |view| loses focus.
     /// </summary>
     procedure OnBlur(const view: ICefView);
+    /// <summary>
+    /// <para>Called when the theme for |view| has changed, after the new theme colors
+    /// have already been applied. Views are notified via the component hierarchy
+    /// in depth-first reverse order (children before parents).</para>
+    /// <para>This will be called in the following cases:</para>
+    /// <code>
+    /// 1. When |view|, or a parent of |view|, is added to a Window.
+    /// 2. When the native/OS or Chrome theme changes for the Window that contains
+    ///    |view|. See ICefWindowDelegate.OnThemeColorsChanged documentation.
+    /// 3. When the client explicitly calls ICefWindow.ThemeChanged on the
+    ///    Window that contains |view|.
+    /// </code>
+    /// <para>Optionally use this callback to override the new per-View theme colors by
+    /// calling ICefView.SetBackgroundColor or the appropriate component-
+    /// specific function. See ICefWindow.SetThemeColor documentation for how
+    /// to customize additional Window theme colors.</para>
+    /// <summary>
+    procedure OnThemeChanged(const view: ICefView);
   end;
 
   /// <summary>
@@ -10171,14 +10409,15 @@ type
     function  GetSelectionBackgroundColor : TCefColor;
     /// <summary>
     /// Sets the font list. The format is "<FONT_FAMILY_LIST>,[STYLES] <SIZE>",
-    /// where: - FONT_FAMILY_LIST is a comma-separated list of font family names,
-    /// - STYLES is an optional space-separated list of style names (case-
-    /// sensitive
+    /// where:
+    /// - FONT_FAMILY_LIST is a comma-separated list of font family names,
+    /// - STYLES is an optional space-separated list of style names (case-sensitive
     ///   "Bold" and "Italic" are supported), and
     /// - SIZE is an integer font size in pixels with the suffix "px".
     ///
-    /// Here are examples of valid font description strings: - "Arial, Helvetica,
-    /// Bold Italic 14px" - "Arial, 14px"
+    /// Here are examples of valid font description strings:
+    /// - "Arial, Helvetica, Bold Italic 14px"
+    /// - "Arial, 14px"
     /// </summary>
     procedure SetFontList(const font_list: ustring);
     /// <summary>
@@ -10272,7 +10511,7 @@ type
   ICefTextfieldDelegate = interface(ICefViewDelegate)
     ['{72612994-92BB-4DE9-BB38-6F49FB45F94B}']
     /// <summary>
-    /// Called when |textfield| recieves a keyboard event. |event| contains
+    /// Called when |textfield| receives a keyboard event. |event| contains
     /// information about the keyboard event. Return true (1) if the keyboard
     /// event was handled or false (0) otherwise for default handling.
     /// </summary>
@@ -10462,6 +10701,16 @@ type
     /// or by ICefKeyboardHandler. The default value is false.
     /// </summary>
     procedure SetPreferAccelerators(prefer_accelerators: boolean);
+    /// <summary>
+    /// Returns the runtime style for this BrowserView (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    function GetRuntimeStyle : TCefRuntimeStyle;
+    /// <summary>
+    /// Returns the runtime style for this BrowserView (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    property RuntimeStyle : TCefRuntimeStyle read GetRuntimeStyle;
   end;
 
   /// <summary>
@@ -10526,6 +10775,11 @@ type
     /// commands can also be handled via cef_command_handler_t::OnChromeCommand.
     /// </summary>
     procedure OnGestureCommand(const browser_view: ICefBrowserView; gesture_command: TCefGestureCommand; var aResult : boolean);
+    /// <summary>
+    /// Optionally change the runtime style for this BrowserView. See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    procedure OnGetBrowserRuntimeStyle(var aResult : TCefRuntimeStyle);
   end;
 
   /// <summary>
@@ -10635,14 +10889,15 @@ type
     procedure SetEnabledTextColors(color: TCefColor);
     /// <summary>
     /// Sets the font list. The format is "<FONT_FAMILY_LIST>,[STYLES] <SIZE>",
-    /// where: - FONT_FAMILY_LIST is a comma-separated list of font family names,
-    /// - STYLES is an optional space-separated list of style names (case-
-    /// sensitive
+    /// where:
+    /// - FONT_FAMILY_LIST is a comma-separated list of font family names,
+    /// - STYLES is an optional space-separated list of style names (case-sensitive
     ///   "Bold" and "Italic" are supported), and
     /// - SIZE is an integer font size in pixels with the suffix "px".
     ///
-    /// Here are examples of valid font description strings: - "Arial, Helvetica,
-    /// Bold Italic 14px" - "Arial, 14px"
+    /// Here are examples of valid font description strings:
+    /// - "Arial, Helvetica, Bold Italic 14px"
+    /// - "Arial, 14px"
     /// </summary>
     procedure SetFontList(const font_list: ustring);
     /// <summary>
@@ -10854,8 +11109,9 @@ type
     /// <summary>
     /// Add a View that will be overlayed on the Window contents with absolute
     /// positioning and high z-order. Positioning is controlled by |docking_mode|
-    /// as described below. The returned ICefOverlayController object is used
-    /// to control the overlay. Overlays are hidden by default.
+    /// as described below. Setting |can_activate| to true (1) will allow the
+    /// overlay view to receive input focus. The returned cef_overlay_controller_t
+    /// object is used to control the overlay. Overlays are hidden by default.
     ///
     /// With CEF_DOCKING_MODE_CUSTOM:
     ///   1. The overlay is initially hidden, sized to |view|'s preferred size,
@@ -10880,7 +11136,7 @@ type
     /// function last after all other child Views have been added so that the
     /// overlay displays as the top-most child of the Window.
     /// </summary>
-    function  AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode): ICefOverlayController;
+    function  AddOverlayView(const view: ICefView; docking_mode: TCefDockingMode; can_activate: boolean): ICefOverlayController;
     /// <summary>
     /// Show a menu with contents |menu_model|. |screen_point| specifies the menu
     /// position in screen coordinates. |anchor_position| specifies how the menu
@@ -10959,6 +11215,43 @@ type
     /// </summary>
     procedure RemoveAllAccelerators;
     /// <summary>
+    /// <para>Override a standard theme color or add a custom color associated with
+    /// |color_id|. See cef_color_ids.h for standard ID values. Recommended usage
+    /// is as follows:</para>
+    /// <code>
+    /// 1. Customize the default native/OS theme by calling SetThemeColor before
+    ///    showing the first Window. When done setting colors call
+    ///    ICefWindow.ThemeChanged to trigger ICefViewDelegate.OnThemeChanged
+    ///    notifications.
+    /// 2. Customize the current native/OS or Chrome theme after it changes by
+    ///    calling SetThemeColor from the ICefWindowDelegate.OnThemeColorsChanged
+    ///    callback. ICefViewDelegate.OnThemeChanged notifications will then be
+    ///    triggered automatically.
+    /// </code>
+    /// <para>The configured color will be available immediately via
+    /// ICefView.GetThemeColor and will be applied to each View in this
+    /// Window's component hierarchy when ICefViewDelegate.OnThemeChanged is
+    /// called. See OnThemeColorsChanged documentation for additional details.</para>
+    /// <para>Clients wishing to add custom colors should use |color_id| values >=
+    /// CEF_ChromeColorsEnd.</para>
+    /// </summary>
+    procedure SetThemeColor(color_id: integer; color: TCefColor);
+    /// <summary>
+    /// <para>Trigger ICefViewDelegate.OnThemeChanged callbacks for each View in
+    /// this Window's component hierarchy. Unlike a native/OS or Chrome theme
+    /// change this function does not reset theme colors to standard values and
+    /// does not result in a call to ICefWindowDelegate.OnThemeColorsChanged.</para>
+    /// <para>Do not call this function from ICefWindowDelegate.OnThemeColorsChanged
+    /// or ICefViewDelegate.OnThemeChanged.</para>
+    /// </summary>
+    procedure ThemeChanged;
+    /// <summary>
+    /// Returns the runtime style for this Window (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    function GetRuntimeStyle: TCefRuntimeStyle;
+
+    /// <summary>
     /// Get the Window title.
     /// </summary>
     property Title                    : ustring            read GetTitle                     write SetTitle;
@@ -10984,6 +11277,11 @@ type
     /// Retrieve the platform window handle for this Window.
     /// </summary>
     property WindowHandle             : TCefWindowHandle   read GetWindowHandle;
+    /// <summary>
+    /// Returns the runtime style for this Window (ALLOY or CHROME). See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    property RuntimeStyle             : TCefRuntimeStyle   read GetRuntimeStyle;
   end;
 
   /// <summary>
@@ -11082,6 +11380,16 @@ type
     /// </summary>
     procedure OnGetTitlebarHeight(const window_: ICefWindow; var titlebar_height: Single; var aResult : boolean);
     /// <summary>
+    /// <para>Return whether the view should accept the initial mouse-down event,
+    /// allowing it to respond to click-through behavior. If STATE_ENABLED is
+    /// returned, the view will be sent a mouseDown: message for an initial mouse-
+    /// down event, activating the view with one click, instead of clicking first
+    /// to make the window active and then clicking the view.</para>
+    /// <para>This function is only supported on macOS. For more details, refer to the
+    /// documentation of acceptsFirstMouse.</para>
+    /// </summary>
+    procedure OnAcceptsFirstMouse(const window_: ICefWindow; var aResult: TCefState);
+    /// <summary>
     /// Return true (1) if |window| can be resized.
     /// </summary>
     procedure OnCanResize(const window_: ICefWindow; var aResult : boolean);
@@ -11110,6 +11418,40 @@ type
     /// true (1) if the keyboard event was handled or false (0) otherwise.
     /// </summary>
     procedure OnKeyEvent(const window_: ICefWindow; const event: TCefKeyEvent; var aResult : boolean);
+    /// <summary>
+    /// <para>Called after the native/OS or Chrome theme for |window| has changed.
+    /// |chrome_theme| will be true (1) if the notification is for a Chrome theme.</para>
+    /// <para>Native/OS theme colors are configured globally and do not need to be
+    /// customized for each Window individually. An example of a native/OS theme
+    /// change that triggers this callback is when the user switches between dark
+    /// and light mode during application lifespan. Native/OS theme changes can be
+    /// disabled by passing the `--force-dark-mode` or `--force-light-mode`
+    /// command-line flag.</para>
+    /// <para>Chrome theme colors will be applied and this callback will be triggered
+    /// if/when a BrowserView is added to the Window's component hierarchy. Chrome
+    /// theme colors can be configured on a per-RequestContext basis using
+    /// ICefRequestContext.SetChromeColorScheme or (Chrome runtime only) by
+    /// visiting chrome://settings/manageProfile. Any theme changes using those
+    /// mechanisms will also trigger this callback. Chrome theme colors will be
+    /// persisted and restored from disk cache with the Chrome runtime, and with
+    /// the Alloy runtime if persist_user_preferences is set to true (1) via
+    /// CefSettings or ICefRequestContext Settings.</para>
+    /// <para>This callback is not triggered on Window creation so clients that wish to
+    /// customize the initial native/OS theme must call
+    /// ICefWindow.SetThemeColor and ICefWindow.ThemeChanged before showing
+    /// the first Window.</para>
+    /// <para>Theme colors will be reset to standard values before this callback is
+    /// called for the first affected Window. Call ICefWindow.SetThemeColor
+    /// from inside this callback to override a standard color or add a custom
+    /// color. ICefViewDelegate.OnThemeChanged will be called after this
+    /// callback for the complete |window| component hierarchy.</para>
+    /// </summary>
+    procedure OnThemeColorsChanged(const window_: ICefWindow; chrome_theme: Integer);
+    /// <summary>
+    /// Optionally change the runtime style for this Window. See
+    /// TCefRuntimeStyle documentation for details.
+    /// </summary>
+    procedure OnGetWindowRuntimeStyle(var aResult: TCefRuntimeStyle);
   end;
 
 implementation

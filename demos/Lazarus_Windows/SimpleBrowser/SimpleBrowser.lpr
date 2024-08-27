@@ -13,8 +13,11 @@ uses
   {$SetPEFlags $20}
 {$ENDIF}
 
+{$R *.res}
+
 begin
-  GlobalCEFApp := TCefApplication.Create;
+  GlobalCEFApp := TCefApplication.Create;  
+  GlobalCEFApp.SetCurrentDir       := True;
 
   // In case you want to use custom directories for the CEF3 binaries, cache and user data.
   // If you don't set a cache directory the browser will use in-memory cache.

@@ -41,7 +41,7 @@ object Form1: TForm1
       Align = alClient
       ReadOnly = True
       ScrollBars = ssBoth
-      TabOrder = 0
+      TabOrder = 3
     end
     object Panel3: TPanel
       Left = 0
@@ -54,7 +54,7 @@ object Form1: TForm1
       Padding.Top = 10
       Padding.Right = 10
       Padding.Bottom = 10
-      TabOrder = 1
+      TabOrder = 0
       object CanEmulateBtn: TButton
         Left = 10
         Top = 10
@@ -86,7 +86,7 @@ object Form1: TForm1
       Padding.Left = 10
       Padding.Right = 10
       Padding.Bottom = 10
-      TabOrder = 2
+      TabOrder = 1
       object GroupBox1: TGroupBox
         Left = 10
         Top = 0
@@ -218,7 +218,7 @@ object Form1: TForm1
       Padding.Left = 10
       Padding.Right = 10
       Padding.Bottom = 10
-      TabOrder = 3
+      TabOrder = 2
       object GroupBox2: TGroupBox
         Left = 10
         Top = 0
@@ -239,7 +239,7 @@ object Form1: TForm1
           Align = alTop
           BevelOuter = bvNone
           Padding.Bottom = 5
-          TabOrder = 0
+          TabOrder = 1
           object Label1: TLabel
             Left = 0
             Top = 0
@@ -270,7 +270,7 @@ object Form1: TForm1
           Align = alTop
           BevelOuter = bvNone
           Padding.Bottom = 5
-          TabOrder = 1
+          TabOrder = 0
           object Label2: TLabel
             Left = 0
             Top = 0
@@ -300,7 +300,7 @@ object Form1: TForm1
           Height = 25
           Align = alBottom
           Caption = 'Override device metrics'
-          TabOrder = 2
+          TabOrder = 5
           OnClick = OverrideDeviceMetricsBtnClick
         end
         object Panel8: TPanel
@@ -311,7 +311,7 @@ object Form1: TForm1
           Align = alTop
           BevelOuter = bvNone
           Padding.Bottom = 5
-          TabOrder = 3
+          TabOrder = 2
           object Label3: TLabel
             Left = 0
             Top = 0
@@ -343,7 +343,7 @@ object Form1: TForm1
           Align = alTop
           BevelOuter = bvNone
           Padding.Bottom = 5
-          TabOrder = 4
+          TabOrder = 3
           object Label4: TLabel
             Left = 0
             Top = 0
@@ -379,7 +379,7 @@ object Form1: TForm1
           Align = alTop
           BevelOuter = bvNone
           Padding.Bottom = 5
-          TabOrder = 5
+          TabOrder = 4
           object Label5: TLabel
             Left = 0
             Top = 0
@@ -427,17 +427,6 @@ object Form1: TForm1
       Padding.Right = 5
       Padding.Bottom = 5
       TabOrder = 0
-      object AddressEdt: TEdit
-        Left = 5
-        Top = 5
-        Width = 700
-        Height = 20
-        Margins.Right = 5
-        Align = alClient
-        TabOrder = 0
-        Text = 'http://www.google.com'
-        ExplicitHeight = 21
-      end
       object GoBtn: TButton
         Left = 705
         Top = 5
@@ -446,8 +435,28 @@ object Form1: TForm1
         Margins.Left = 5
         Align = alRight
         Caption = 'Go'
-        TabOrder = 1
+        TabOrder = 0
         OnClick = GoBtnClick
+      end
+      object AddressCb: TComboBox
+        Left = 5
+        Top = 5
+        Width = 700
+        Height = 21
+        Align = alClient
+        ItemIndex = 0
+        TabOrder = 1
+        Text = 'https://www.google.com'
+        Items.Strings = (
+          'https://www.google.com'
+          'https://browserleaks.com'
+          'https://www.leaktest.io/'
+          'https://coveryourtracks.eff.org/'
+          'https://ipleak.com/full-report/'
+          'https://xsinator.com/testing.html')
+        ExplicitLeft = 392
+        ExplicitTop = 16
+        ExplicitWidth = 145
       end
     end
     object CEFWindowParent1: TCEFWindowParent

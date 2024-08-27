@@ -30,9 +30,12 @@ begin
   context.Global.SetValueByKey('myval', TempValue, V8_PROPERTY_ATTRIBUTE_NONE);
 end;
 
+{$R *.res}
+
 begin
   GlobalCEFApp                  := TCefApplicationCore.Create;
-  GlobalCEFApp.OnContextCreated := GlobalCEFApp_OnContextCreated;
+  GlobalCEFApp.OnContextCreated := GlobalCEFApp_OnContextCreated;      
+  GlobalCEFApp.SetCurrentDir    := True;
 
   // The main process and the subprocess *MUST* have the same FrameworkDirPath, ResourcesDirPath,
   // LocalesDirPath, cache and UserDataPath paths

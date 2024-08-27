@@ -18,11 +18,14 @@ begin
   registrar.AddCustomScheme('hello', CEF_SCHEME_OPTION_STANDARD or CEF_SCHEME_OPTION_LOCAL);
 end;   
 
+{$R *.res}
+
 begin
   GlobalCEFApp                     := TCefApplicationCore.Create;   
   GlobalCEFApp.OnRegCustomSchemes  := GlobalCEFApp_OnRegCustomSchemes;       
   GlobalCEFApp.LogFile             := 'debug.log';
-  GlobalCEFApp.LogSeverity         := LOGSEVERITY_INFO;
+  GlobalCEFApp.LogSeverity         := LOGSEVERITY_INFO;  
+  GlobalCEFApp.SetCurrentDir       := True;
   GlobalCEFApp.StartSubProcess;
   GlobalCEFApp.Free;
   GlobalCEFApp := nil;
