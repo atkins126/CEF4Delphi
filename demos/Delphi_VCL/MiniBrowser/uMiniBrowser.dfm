@@ -306,13 +306,13 @@ object MiniBrowserFrm: TMiniBrowserFrm
     OnDownloadUpdated = Chromium1DownloadUpdated
     OnAfterCreated = Chromium1AfterCreated
     OnBeforeClose = Chromium1BeforeClose
-    OnClose = Chromium1Close
     OnCertificateError = Chromium1CertificateError
     OnSelectClientCertificate = Chromium1SelectClientCertificate
     OnBeforeResourceLoad = Chromium1BeforeResourceLoad
     OnResourceResponse = Chromium1ResourceResponse
     OnFileDialog = Chromium1FileDialog
     OnDevToolsMethodResult = Chromium1DevToolsMethodResult
+    OnChromeCommand = Chromium1ChromeCommand
     OnRequestMediaAccessPermission = Chromium1RequestMediaAccessPermission
     Left = 32
     Top = 224
