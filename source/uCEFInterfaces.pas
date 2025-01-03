@@ -366,7 +366,8 @@ type
     procedure doOnDialogClosed(const browser: ICefBrowser);
 
     // ICefLifeSpanHandler
-    function  doOnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    function  doOnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; popup_id: Integer; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    procedure doOnBeforePopupAborted(const browser: ICefBrowser; popup_id: Integer);
     procedure doOnBeforeDevToolsPopup(const browser: ICefBrowser; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var use_default_window: boolean);
     procedure doOnAfterCreated(const browser: ICefBrowser);
     procedure doOnBeforeClose(const browser: ICefBrowser);
@@ -461,6 +462,7 @@ type
 
     // ICefFrameHandler
     procedure doOnFrameCreated(const browser: ICefBrowser; const frame: ICefFrame);
+    procedure doOnFrameDestroyed(const browser: ICefBrowser; const frame: ICefFrame);
     procedure doOnFrameAttached(const browser: ICefBrowser; const frame: ICefFrame; reattached: boolean);
     procedure doOnFrameDetached(const browser: ICefBrowser; const frame: ICefFrame);
     procedure doOnMainFrameChanged(const browser: ICefBrowser; const old_frame, new_frame: ICefFrame);
@@ -873,6 +875,11 @@ type
     /// with custom handling of modal windows.
     /// </summary>
     function  GetOpenerWindowHandle: TCefWindowHandle;
+    /// <summary>
+    /// Retrieve the unique identifier of the browser that opened this browser.
+    /// Will return 0 for non-popup browsers.
+    /// </summary>
+    function  GetOpenerIdentifier: Integer;
     /// <summary>
     /// Returns true (1) if this browser is wrapped in a ICefBrowserView.
     /// </summary>
@@ -1403,6 +1410,11 @@ type
     /// with custom handling of modal windows.
     /// </summary>
     property OpenerWindowHandle         : TCefWindowHandle         read GetOpenerWindowHandle;
+    /// <summary>
+    /// Retrieve the unique identifier of the browser that opened this browser.
+    /// Will return 0 for non-popup browsers.
+    /// </summary>
+    property OpenerIdentifier           : Integer                  read GetOpenerIdentifier;
     /// <summary>
     /// Get the current zoom level. The default zoom level is 0.0. This function
     /// can only be called on the UI thread.
@@ -1939,6 +1951,10 @@ type
     /// </summary>
     procedure Paste;
     /// <summary>
+    /// Execute paste and match style in this frame.
+    /// </summary>
+    procedure PasteAndMatchStyle;
+    /// <summary>
     /// Execute delete in this frame.
     /// </summary>
     procedure Del;
@@ -2096,81 +2112,79 @@ type
   end;
 
   /// <summary>
-  /// Implement this interface to handle events related to ICefFrame life span.
-  /// The order of callbacks is:
+  /// <para>Implement this structure to handle events related to cef_frame_t life span.
+  /// The order of callbacks is:</para>
   ///
-  /// (1) During initial ICefBrowserHost creation and navigation of the main
-  /// frame:
-  /// - ICefFrameHandler.OnFrameCreated => The initial main frame
-  /// object has been created. Any commands will be queued until the frame is attached.
-  /// - ICefFrameHandler.OnMainFrameChanged => The initial main frame object
-  /// has been assigned to the browser.
-  /// - ICefLifeSpanHandler.OnAfterCreated => The browser is now valid and
-  /// can be used.
-  /// - ICefFrameHandler.OnFrameAttached => The initial main frame object is
-  /// now connected to its peer in the renderer process. Commands can be routed.
-  ///
-  /// (2) During further ICefBrowserHost navigation/loading of the main frame
-  ///     and/or sub-frames:
-  /// - ICefFrameHandler.OnFrameCreated => A new main frame or sub-frame
-  /// object has been created. Any commands will be queued until the frame is attached.
-  /// - ICefFrameHandler.OnFrameAttached => A new main frame or sub-frame
-  /// object is now connected to its peer in the renderer process. Commands can be routed.
-  /// - ICefFrameHandler.OnFrameDetached => An existing main frame or sub-
-  /// frame object has lost its connection to the renderer process. If multiple
+  /// <para>(1) During initial cef_browser_host_t creation and navigation of the main
+  /// frame:</para>
+  /// <code>
+  /// - cef_frame_handler_t::OnFrameCreated => The initial main frame object has
+  ///   been created. Any commands will be queued until the frame is attached.
+  /// - cef_frame_handler_t::OnMainFrameChanged => The initial main frame object
+  ///   has been assigned to the browser.
+  /// - cef_life_span_handler_t::OnAfterCreated => The browser is now valid and
+  ///   can be used.
+  /// - cef_frame_handler_t::OnFrameAttached => The initial main frame object is
+  ///   now connected to its peer in the renderer process. Commands can be routed.
+  /// </code>
+  /// <para>(2) During further cef_browser_host_t navigation/loading of the main frame
+  ///     and/or sub-frames:</para>
+  /// <code>
+  /// - cef_frame_handler_t::OnFrameCreated => A new main frame or sub-frame
+  ///   object has been created. Any commands will be queued until the frame is
+  ///   attached.
+  /// - cef_frame_handler_t::OnFrameAttached => A new main frame or sub-frame
+  ///   object is now connected to its peer in the renderer process. Commands can
+  ///   be routed.
+  /// - cef_frame_handler_t::OnFrameDetached => An existing main frame or sub-
+  ///   frame object has lost its connection to the renderer process. If multiple
   ///   objects are detached at the same time then notifications will be sent for
   ///   any sub-frame objects before the main frame object. Commands can no longer
   ///   be routed and will be discarded.
-  /// - ICefFrameHandler.OnMainFrameChanged => A new main frame object has
-  /// been assigned to the browser. This will only occur with cross-origin navigation
-  ///   or re-navigation after renderer process termination (due to crashes, etc).
-  ///
-  /// (3) During final ICefBrowserHost destruction of the main frame:
-  /// - ICefFrameHandler.OnFrameDetached => Any sub-frame objects have lost
-  /// their connection to the renderer process. Commands can no longer be routed and
-  ///   will be discarded.
-  /// - ICefLifeSpanHandler.OnBeforeClose => The browser has been destroyed.
-  /// - ICefFrameHandler.OnFrameDetached => The main frame object have lost
-  /// its connection to the renderer process. Notifications will be sent for any
+  /// - CefFremeHadler::OnFrameDestroyed => An existing main frame or sub-frame
+  ///   object has been destroyed.
+  /// - cef_frame_handler_t::OnMainFrameChanged => A new main frame object has
+  ///   been assigned to the browser. This will only occur with cross-origin
+  ///   navigation or re-navigation after renderer process termination (due to
+  ///   crashes, etc).
+  /// </code>
+  /// <para>(3) During final cef_browser_host_t destruction of the main frame:</para>
+  /// <code>
+  /// - cef_frame_handler_t::OnFrameDetached => Any sub-frame objects have lost
+  ///   their connection to the renderer process. Commands can no longer be routed
+  ///   and will be discarded.
+  /// - CefFreameHandler::OnFrameDestroyed => Any sub-frame objects have been
+  ///   destroyed.
+  /// - cef_life_span_handler_t::OnBeforeClose => The browser has been destroyed.
+  /// - cef_frame_handler_t::OnFrameDetached => The main frame object have lost
+  ///   its connection to the renderer process. Notifications will be sent for any
   ///   sub-frame objects before the main frame object. Commands can no longer be
   ///   routed and will be discarded.
-  /// - ICefFrameHandler.OnMainFrameChanged => The final main frame object has
+  /// - CefFreameHandler::OnFrameDestroyed => The main frame object has been
+  ///   destroyed.
+  /// - cef_frame_handler_t::OnMainFrameChanged => The final main frame object has
   ///   been removed from the browser.
+  /// </code>
+  /// <para>Special handling applies for cross-origin loading on creation/navigation of
+  /// sub-frames, and cross-origin loading on creation of new popup browsers. A
+  /// temporary frame will first be created in the parent frame's renderer
+  /// process. This temporary frame will never attach and will be discarded after
+  /// the real cross-origin frame is created in the new/target renderer process.
+  /// The client will receive creation callbacks for the temporary frame, followed
+  /// by cross-origin navigation callbacks (2) for the transition from the
+  /// temporary frame to the real frame. The temporary frame will not receive or
+  /// execute commands during this transitional period (any sent commands will be
+  /// discarded).<para>
   ///
-  /// Cross-origin navigation and/or loading receives special handling.
+  /// <para>When the main frame navigates to a different origin the OnMainFrameChanged
+  /// callback (2) will be executed with the old and new main frame objects.</para>
   ///
-  /// When the main frame navigates to a different origin the OnMainFrameChanged
-  /// callback (2) will be executed with the old and new main frame objects.
-  ///
-  /// When a new sub-frame is loaded in, or an existing sub-frame is navigated to,
-  /// a different origin from the parent frame, a temporary sub-frame object will
-  /// first be created in the parent's renderer process. That temporary sub-frame
-  /// will then be discarded after the real cross-origin sub-frame is created in
-  /// the new/target renderer process. The client will receive cross-origin
-  /// navigation callbacks (2) for the transition from the temporary sub-frame to
-  /// the real sub-frame. The temporary sub-frame will not recieve or execute
-  /// commands during this transitional period (any sent commands will be
-  /// discarded).
-  ///
-  /// When a new popup browser is created in a different origin from the parent
-  /// browser, a temporary main frame object for the popup will first be created
-  /// in the parent's renderer process. That temporary main frame will then be
-  /// discarded after the real cross-origin main frame is created in the
-  /// new/target renderer process. The client will recieve creation and initial
-  /// navigation callbacks (1) for the temporary main frame, followed by cross-
-  /// origin navigation callbacks (2) for the transition from the temporary main
-  /// frame to the real main frame. The temporary main frame may receive and
-  /// execute commands during this transitional period (any sent commands may be
-  /// executed, but the behavior is potentially undesirable since they execute in
-  /// the parent browser's renderer process and not the new/target renderer
-  /// process).
-  ///
-  /// Callbacks will not be executed for placeholders that may be created during
+  /// <para>Callbacks will not be executed for placeholders that may be created during
   /// pre-commit navigation for sub-frames that do not yet exist in the renderer
-  /// process. Placeholders will have ICefFrame.GetIdentifier() == -4.
+  /// process. Placeholders will have cef_frame_t::get_identifier() == -4.</para>
   ///
-  /// The functions of this interface will be called on the UI thread unless
-  /// otherwise indicated.
+  /// <para>The functions of this structure will be called on the UI thread unless
+  /// otherwise indicated.</para>
   /// </summary>
   /// <remarks>
   /// <para><see cref="uCEFTypes|TCefFrameHandler">Implements TCefFrameHandler</see></para>
@@ -2182,23 +2196,43 @@ type
     /// Called when a new frame is created. This will be the first notification
     /// that references |frame|. Any commands that require transport to the
     /// associated renderer process (LoadRequest, SendProcessMessage, GetSource,
-    /// etc.) will be queued until OnFrameAttached is called for |frame|.
+    /// etc.) will be queued. The queued commands will be sent before
+    /// OnFrameAttached or discarded before OnFrameDestroyed if the frame never
+    /// attaches.
     /// </summary>
     procedure OnFrameCreated(const browser: ICefBrowser; const frame: ICefFrame);
     /// <summary>
+    /// Called when an existing frame is destroyed. This will be the last
+    /// notification that references |frame| and cef_frame_t::is_valid() will
+    /// return false (0) for |frame|. If called during browser destruction and
+    /// after cef_life_span_handler_t::on_before_close() then
+    /// cef_browser_t::is_valid() will return false (0) for |browser|. Any queued
+    /// commands that have not been sent will be discarded before this callback.
+    /// </summary>
+    procedure OnFrameDestroyed(const browser: ICefBrowser; const frame: ICefFrame);
+    /// <summary>
     /// Called when a frame can begin routing commands to/from the associated
     /// renderer process. |reattached| will be true (1) if the frame was re-
-    /// attached after exiting the BackForwardCache. Any commands that were queued
-    /// have now been dispatched.
+    /// attached after exiting the BackForwardCache or after encountering a
+    /// recoverable connection error. Any queued commands will now have been
+    /// dispatched. This function will not be called for temporary frames created
+    /// during cross-origin navigation.
     /// </summary>
     procedure OnFrameAttached(const browser: ICefBrowser; const frame: ICefFrame; reattached: boolean);
     /// <summary>
-    /// Called when a frame loses its connection to the renderer process and will
-    /// be destroyed. Any pending or future commands will be discarded and
-    /// ICefFrame.IsValid() will now return false (0) for |frame|. If called
-    /// after ICefLifeSpanHandler.OnBeforeClose() during browser
-    /// destruction then ICefBrowser.IsValid() will return false (0) for
-    /// |browser|.
+    /// Called when a frame loses its connection to the renderer process. This may
+    /// occur when a frame is destroyed, enters the BackForwardCache, or
+    /// encounters a rare connection error. In the case of frame destruction this
+    /// call will be followed by a (potentially async) call to OnFrameDestroyed.
+    /// If frame destruction is occuring synchronously then
+    /// cef_frame_t::is_valid() will return false (0) for |frame|. If called
+    /// during browser destruction and after
+    /// cef_life_span_handler_t::on_before_close() then cef_browser_t::is_valid()
+    /// will return false (0) for |browser|. If, in the non-destruction case, the
+    /// same frame later exits the BackForwardCache or recovers from a connection
+    /// error then there will be a follow-up call to OnFrameAttached. This
+    /// function will not be called for temporary frames created during cross-
+    /// origin navigation.
     /// </summary>
     procedure OnFrameDetached(const browser: ICefBrowser; const frame: ICefFrame);
     /// <summary>
@@ -2207,14 +2241,14 @@ type
     /// navigation after renderer process termination (due to crashes, etc).
     /// |old_frame| will be NULL and |new_frame| will be non-NULL when a main
     /// frame is assigned to |browser| for the first time. |old_frame| will be
-    /// non-NULL and |new_frame| will be NULL and  when a main frame is removed
-    /// from |browser| for the last time. Both |old_frame| and |new_frame| will be
-    /// non-NULL for cross-origin navigations or re-navigation after renderer
-    /// process termination. This function will be called after on_frame_created()
-    /// for |new_frame| and/or after OnFrameDetached() for |old_frame|. If
-    /// called after ICefLifeSpanHandler.OnBeforeClose() during browser
-    /// destruction then ICefBrowser.IsValid() will return false (0) for
-    /// |browser|.
+    /// non-NULL and |new_frame| will be NULL when a main frame is removed from
+    /// |browser| for the last time. Both |old_frame| and |new_frame| will be non-
+    /// NULL for cross-origin navigations or re-navigation after renderer process
+    /// termination. This function will be called after on_frame_created() for
+    /// |new_frame| and/or after on_frame_destroyed() for |old_frame|. If called
+    /// during browser destruction and after
+    /// cef_life_span_handler_t::on_before_close() then cef_browser_t::is_valid()
+    /// will return false (0) for |browser|.
     /// </summary>
     procedure OnMainFrameChanged(const browser: ICefBrowser; const old_frame, new_frame: ICefFrame);
     /// <summary>
@@ -6214,31 +6248,53 @@ type
   ICefLifeSpanHandler = interface(ICefBaseRefCounted)
     ['{0A3EB782-A319-4C35-9B46-09B2834D7169}']
     /// <summary>
-    /// Called on the UI thread before a new popup browser is created. The
-    /// |browser| and |frame| values represent the source of the popup request.
-    /// The |target_url| and |target_frame_name| values indicate where the popup
-    /// browser should navigate and may be NULL if not specified with the request.
-    /// The |target_disposition| value indicates where the user intended to open
-    /// the popup (e.g. current tab, new tab, etc). The |user_gesture| value will
-    /// be true (1) if the popup was opened via explicit user gesture (e.g.
-    /// clicking a link) or false (0) if the popup opened automatically (e.g. via
-    /// the DomContentLoaded event). The |popupFeatures| structure contains
-    /// additional information about the requested popup window. To allow creation
-    /// of the popup browser optionally modify |windowInfo|, |client|, |settings|
-    /// and |no_javascript_access| and return false (0). To cancel creation of the
+    /// <para>Called on the UI thread before a new popup browser is created. The
+    /// |browser| and |frame| values represent the source of the popup request
+    /// (opener browser and frame). The |popup_id| value uniquely identifies the
+    /// popup in the context of the opener browser. The |target_url| and
+    /// |target_frame_name| values indicate where the popup browser should
+    /// navigate and may be NULL if not specified with the request. The
+    /// |target_disposition| value indicates where the user intended to open the
+    /// popup (e.g. current tab, new tab, etc). The |user_gesture| value will be
+    /// true (1) if the popup was opened via explicit user gesture (e.g. clicking
+    /// a link) or false (0) if the popup opened automatically (e.g. via the
+    /// DomContentLoaded event). The |popupFeatures| structure contains additional
+    /// information about the requested popup window. To allow creation of the
+    /// popup browser optionally modify |windowInfo|, |client|, |settings| and
+    /// |no_javascript_access| and return false (0). To cancel creation of the
     /// popup browser return true (1). The |client| and |settings| values will
     /// default to the source browser's values. If the |no_javascript_access|
     /// value is set to false (0) the new browser will not be scriptable and may
     /// not be hosted in the same renderer process as the source browser. Any
     /// modifications to |windowInfo| will be ignored if the parent browser is
-    /// wrapped in a ICefBrowserView. Popup browser creation will be canceled
-    /// if the parent browser is destroyed before the popup browser creation
-    /// completes (indicated by a call to OnAfterCreated for the popup browser).
-    /// The |extra_info| parameter provides an opportunity to specify extra
-    /// information specific to the created popup browser that will be passed to
-    /// ICefRenderProcessHandler.OnBrowserCreated in the render process.
+    /// wrapped in a cef_browser_view_t. The |extra_info| parameter provides an
+    /// opportunity to specify extra information specific to the created popup
+    /// browser that will be passed to
+    /// cef_render_process_handler_t::on_browser_created() in the render process.
+    /// </para>
+    /// <para>If popup browser creation succeeds then OnAfterCreated will be called for
+    /// the new popup browser. If popup browser creation fails, and if the opener
+    /// browser has not yet been destroyed, then OnBeforePopupAborted will be
+    /// called for the opener browser. See OnBeforePopupAborted documentation for
+    /// additional details.</para>
     /// </summary>
-    function  OnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    function  OnBeforePopup(const browser: ICefBrowser; const frame: ICefFrame; popup_id: Integer; const targetUrl, targetFrameName: ustring; targetDisposition: TCefWindowOpenDisposition; userGesture: Boolean; const popupFeatures: TCefPopupFeatures; var windowInfo: TCefWindowInfo; var client: ICefClient; var settings: TCefBrowserSettings; var extra_info: ICefDictionaryValue; var noJavascriptAccess: Boolean): Boolean;
+    /// <summary>
+    /// <para>Called on the CEF UI thread if a new popup browser is aborted. This only
+    /// occurs if the popup is allowed in OnBeforePopup and creation fails before
+    /// OnAfterCreated is called for the new popup browser. The |browser| value is
+    /// the source of the popup request (opener browser). The |popup_id| value
+    /// uniquely identifies the popup in the context of the opener browser, and is
+    /// the same value that was passed to OnBeforePopup.</para>
+    ///
+    /// <para>Any client state associated with pending popups should be cleared in
+    /// OnBeforePopupAborted, OnAfterCreated of the popup browser, or
+    /// OnBeforeClose of the opener browser. OnBeforeClose of the opener browser
+    /// may be called before this function in cases where the opener is closing
+    /// during popup creation, in which case ICefBrowser.IsValid will
+    /// return false (0) in this function.</para>
+    /// </summary>
+    procedure OnBeforePopupAborted(const browser: ICefBrowser; popup_id: Integer);
     /// <summary>
     /// <para>Called on the UI thread before a new DevTools popup browser is created.
     /// The |browser| value represents the source of the popup request. Optionally
@@ -6376,10 +6432,11 @@ type
     /// browser object and do not attempt to execute any functions on the browser
     /// object (other than IsValid, GetIdentifier or IsSame) after this callback
     /// returns. ICefFrameHandler callbacks related to final main frame
-    /// destruction will arrive after this callback and ICefBrowser.IsValid
-    /// will return false (0) at that time. Any in-progress network requests
-    /// associated with |browser| will be aborted when the browser is destroyed,
-    /// and ICefResourceRequestHandler callbacks related to those requests may
+    /// destruction, and OnBeforePopupAborted callbacks for any pending popups,
+    /// will arrive after this callback and ICefBrowser.IsValid will return
+    /// false (0) at that time. Any in-progress network requests associated with
+    /// |browser| will be aborted when the browser is destroyed, and
+    /// ICefResourceRequestHandler callbacks related to those requests may
     /// still arrive on the IO thread after this callback. See ICefFrameHandler
     /// and DoClose() documentation for additional usage information.
     /// </summary>
@@ -6627,16 +6684,19 @@ type
     function  OnCertificateError(const browser: ICefBrowser; certError: TCefErrorcode; const requestUrl: ustring; const sslInfo: ICefSslInfo; const callback: ICefCallback): Boolean;
     /// <summary>
     /// Called on the UI thread when a client certificate is being requested for
-    /// authentication. Return false (0) to use the default behavior and
-    /// automatically select the first certificate available. Return true (1) and
-    /// call ICefSelectClientCertificateCallback.Select either in this
-    /// function or at a later time to select a certificate. Do not call Select or
-    /// call it with NULL to continue without using any certificate. |isProxy|
-    /// indicates whether the host is an HTTPS proxy or the origin server. |host|
-    /// and |port| contains the hostname and port of the SSL server.
-    /// |certificates| is the list of certificates to choose from; this list has
-    /// already been pruned by Chromium so that it only contains certificates from
-    /// issuers that the server trusts.
+    /// authentication. Return false (0) to use the default behavior.  If the
+    /// |certificates| list is not NULL the default behavior will be to display a
+    /// dialog for certificate selection. If the |certificates| list is NULL then
+    /// the default behavior will be not to show a dialog and it will continue
+    /// without using any certificate. Return true (1) and call
+    /// ICefSelectClientCertificateCallback.Select either in this function
+    /// or at a later time to select a certificate. Do not call Select or call it
+    /// with NULL to continue without using any certificate. |isProxy| indicates
+    /// whether the host is an HTTPS proxy or the origin server. |host| and |port|
+    /// contains the hostname and port of the SSL server. |certificates| is the
+    /// list of certificates to choose from; this list has already been pruned by
+    /// Chromium so that it only contains certificates from issuers that the
+    /// server trusts.
     /// </summary>
     function  OnSelectClientCertificate(const browser: ICefBrowser; isProxy: boolean; const host: ustring; port: integer; certificatesCount: NativeUInt; const certificates: TCefX509CertificateArray; const callback: ICefSelectClientCertificateCallback): boolean;
     /// <summary>
@@ -9798,8 +9858,16 @@ type
     /// </summary>
     function  IsAccessibilityFocusable : boolean;
     /// <summary>
-    /// Request keyboard focus. If this View is focusable it will become the
-    /// focused View.
+    /// Returns true (1) if this View has focus in the context of the containing
+    /// Window. Check both this function and ICefWindow.IsActive to determine
+    /// global keyboard focus.
+    /// </summary>
+    function  HasFocus : boolean;
+    /// <summary>
+    /// Request focus for this View in the context of the containing Window. If
+    /// this View is focusable it will become the focused View. Any focus changes
+    /// while a Window is not active may be applied after that Window next becomes
+    /// active.
     /// </summary>
     procedure RequestFocus;
     /// <summary>
@@ -10835,6 +10903,13 @@ type
     /// </summary>
     function  IsFullscreen : boolean;
     /// <summary>
+    /// Returns the View that currently has focus in this Window, or nullptr if no
+    /// View currently has focus. A Window may have a focused View even if it is
+    /// not currently active. Any focus changes while a Window is not active may
+    /// be applied after that Window next becomes active.
+    /// </summary>
+    function  GetFocusedView : ICefView;
+    /// <summary>
     /// Set the Window title.
     /// </summary>
     procedure SetTitle(const title_: ustring);
@@ -11006,7 +11081,13 @@ type
     /// TCefRuntimeStyle documentation for details.
     /// </summary>
     function GetRuntimeStyle: TCefRuntimeStyle;
-
+    /// <summary>
+    /// Returns the View that currently has focus in this Window, or nullptr if no
+    /// View currently has focus. A Window may have a focused View even if it is
+    /// not currently active. Any focus changes while a Window is not active may
+    /// be applied after that Window next becomes active.
+    /// </summary>
+    property FocusedView              : ICefView           read GetFocusedView;
     /// <summary>
     /// Get the Window title.
     /// </summary>

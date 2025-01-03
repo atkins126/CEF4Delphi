@@ -246,6 +246,7 @@ type
       procedure SetOsmodalLoop(aValue : boolean);
       {$ENDIF}
       procedure SetKioskPrinting(aValue : boolean);
+      procedure SetLogFile(const aValue : ustring);
 
       function  GetChromeVersion : ustring;
       function  GetLibCefVersion : ustring;
@@ -267,6 +268,8 @@ type
       function  GetApiHashPlatform : ustring;
       function  GetApiHashCommit : ustring;
       function  GetExitCode : TCefResultCode;
+      function  GetBrowserById(aID : integer) : ICefBrowser;
+      function  GetCookiesDir(const aRootDirectory : string) : string;
       {$IFDEF LINUX}
       function  GetXDisplay : PXDisplay;
       function  GetArgc : longint;
@@ -374,7 +377,7 @@ type
       function  InitializeLibrary(const aApp : ICefApp) : boolean;
       procedure RenameAndDeleteDir(const aDirectory : string; aKeepCookies : boolean = False);
       procedure DeleteCacheContents(const aDirectory : string);
-      procedure DeleteCookiesDB(const aDirectory : string);
+      procedure DeleteCookiesDB(const aRootDirectory : string);
       procedure MoveCookiesDB(const aSrcDirectory, aDstDirectory : string);
       function  MultiExeProcessing : boolean;
       function  SingleExeProcessing : boolean;
@@ -650,7 +653,7 @@ type
       /// [app name] is the name of the main app executable. Also configurable using
       /// the "log-file" command-line switch.
       /// </summary>
-      property LogFile                           : ustring                                  read FLogFile                           write FLogFile;
+      property LogFile                           : ustring                                  read FLogFile                           write SetLogFile;
       /// <summary>
       /// The log severity. Only messages of this severity level or higher will be
       /// logged. When set to DISABLE no messages will be written to the log file,
@@ -1455,6 +1458,10 @@ type
       /// </summary>
       property ExitCode                          : TCefResultCode                           read GetExitCode;
       /// <summary>
+      /// Returns the browser (if any) with the specified identifier.
+      /// </summary>
+      property BrowserById[id : integer]         : ICefBrowser                              read GetBrowserById;
+      /// <summary>
       /// Last error message that is usually shown when CEF finds a problem at initialization.
       /// </summary>
       property LastErrorMessage                  : ustring                                  read FLastErrorMessage;
@@ -1819,7 +1826,7 @@ uses
   {$IFDEF MACOSX}uCEFMacOSFunctions,{$ENDIF}
   uCEFLibFunctions, uCEFMiscFunctions, uCEFCommandLine, uCEFConstants,
   uCEFSchemeHandlerFactory, uCEFCookieManager, uCEFApp, uCEFCompletionCallback,
-  uCEFWaitableEvent;
+  uCEFWaitableEvent, uCEFBrowser;
 
 procedure DestroyGlobalCEFApp;
 begin
@@ -2741,6 +2748,11 @@ begin
     end;
 end;
 
+procedure TCefApplicationCore.SetLogFile(const aValue : ustring);
+begin
+  FLogFile := CustomAbsolutePath(aValue, False);
+end;
+
 procedure TCefApplicationCore.UpdateDeviceScaleFactor;
 begin
   if (FForcedDeviceScaleFactor <> 0) then
@@ -2908,6 +2920,7 @@ end;
 function TCefApplicationCore.InitializeLibrary(const aApp : ICefApp) : boolean;
 var
   TempArgs : TCefMainArgs;
+  TempRootDir : string;
 begin
   Result := False;
 
@@ -2915,14 +2928,19 @@ begin
     try
       if (aApp <> nil) then
         begin
+          if (length(FRootCache) > 0) then
+            TempRootDir := FRootCache
+           else
+            TempRootDir := FCache;
+
           if FDeleteCache and FDeleteCookies then
-            RenameAndDeleteDir(FCache)
+            RenameAndDeleteDir(TempRootDir)
            else
             if FDeleteCookies then
-              DeleteCookiesDB(IncludeTrailingPathDelimiter(FCache) + 'Network')
+              DeleteCookiesDB(TempRootDir)
              else
               if FDeleteCache then
-                RenameAndDeleteDir(FCache, True);
+                RenameAndDeleteDir(TempRootDir, True);
 
           InitializeSettings(FAppSettings);
           InitializeCefMainArgs(TempArgs);
@@ -2959,15 +2977,25 @@ begin
   end;
 end;
 
-procedure TCefApplicationCore.DeleteCookiesDB(const aDirectory : string);
+function TCefApplicationCore.GetCookiesDir(const aRootDirectory : string) : string;
+begin
+  Result := IncludeTrailingPathDelimiter(aRootDirectory) + 'Default';
+  Result := IncludeTrailingPathDelimiter(Result) + 'Network';
+  Result := IncludeTrailingPathDelimiter(Result);
+end;
+
+procedure TCefApplicationCore.DeleteCookiesDB(const aRootDirectory : string);
 var
   TempFiles : TStringList;
+  TempCookiesDir : string;
 begin
   TempFiles := TStringList.Create;
 
   try
-    TempFiles.Add(IncludeTrailingPathDelimiter(aDirectory) + 'Cookies');
-    TempFiles.Add(IncludeTrailingPathDelimiter(aDirectory) + 'Cookies-journal');
+    TempCookiesDir := GetCookiesDir(aRootDirectory);
+
+    TempFiles.Add(TempCookiesDir + 'Cookies');
+    TempFiles.Add(TempCookiesDir + 'Cookies-journal');
 
     DeleteFileList(TempFiles);
   finally
@@ -2983,12 +3011,12 @@ begin
   TempFiles := TStringList.Create;
 
   try
-    TempFiles.Add('LocalPrefs.json');
+    TempFiles.Add('Local State');
 
     MoveFileList(TempFiles, aSrcDirectory, aDstDirectory);
 
-    TempSrc := IncludeTrailingPathDelimiter(aSrcDirectory) + 'Network';
-    TempDst := IncludeTrailingPathDelimiter(aDstDirectory) + 'Network';
+    TempSrc := GetCookiesDir(aSrcDirectory);
+    TempDst := GetCookiesDir(aDstDirectory);
 
     TempFiles.Clear;
     TempFiles.Add('Cookies');
@@ -3023,7 +3051,8 @@ begin
 
         if RenameFile(TempOldDir, TempNewDir) then
           begin
-            if aKeepCookies then MoveCookiesDB(TempNewDir, TempOldDir);
+            if aKeepCookies then
+              MoveCookiesDB(TempNewDir, TempOldDir);
 
             TempThread := TCEFDirectoryDeleterThread.Create(TempNewDir);
             {$IFDEF DELPHI14_UP}
@@ -3776,6 +3805,14 @@ begin
     Result := CEF_RESULT_CODE_NORMAL_EXIT;
 end;
 
+function TCefApplicationCore.GetBrowserById(aID : integer) : ICefBrowser;
+begin
+  if (FStatus = asInitialized) then
+    Result := TCefBrowserRef.UnWrap(cef_browser_host_get_browser_by_identifier(aID))
+   else
+    Result := nil;
+end;
+
 {$IFDEF LINUX}
 function TCefApplicationCore.GetXDisplay : PXDisplay;
 begin
@@ -3977,11 +4014,13 @@ end;
 
 function TCefApplicationCore.Load_cef_browser_capi_h : boolean;
 begin
-  {$IFDEF FPC}Pointer({$ENDIF}cef_browser_host_create_browser{$IFDEF FPC}){$ENDIF}      := GetProcAddress(FLibHandle, 'cef_browser_host_create_browser');
-  {$IFDEF FPC}Pointer({$ENDIF}cef_browser_host_create_browser_sync{$IFDEF FPC}){$ENDIF} := GetProcAddress(FLibHandle, 'cef_browser_host_create_browser_sync');
+  {$IFDEF FPC}Pointer({$ENDIF}cef_browser_host_create_browser{$IFDEF FPC}){$ENDIF}            := GetProcAddress(FLibHandle, 'cef_browser_host_create_browser');
+  {$IFDEF FPC}Pointer({$ENDIF}cef_browser_host_create_browser_sync{$IFDEF FPC}){$ENDIF}       := GetProcAddress(FLibHandle, 'cef_browser_host_create_browser_sync');
+  {$IFDEF FPC}Pointer({$ENDIF}cef_browser_host_get_browser_by_identifier{$IFDEF FPC}){$ENDIF} := GetProcAddress(FLibHandle, 'cef_browser_host_get_browser_by_identifier');
 
   Result := assigned(cef_browser_host_create_browser) and
-            assigned(cef_browser_host_create_browser_sync);
+            assigned(cef_browser_host_create_browser_sync) and
+            assigned(cef_browser_host_get_browser_by_identifier);
 end;
 
 function TCefApplicationCore.Load_cef_command_line_capi_h : boolean;
