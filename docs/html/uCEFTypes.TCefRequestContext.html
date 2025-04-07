@@ -19,7 +19,9 @@
 <code>type TCefRequestContext = record</code></p>
 <h2 class="description">Description</h2>
 <p>
- A request context provides request handling for a set of related browser or URL request objects. A request context can be specified when creating a new browser via the ICefBrowserHost static factory functions or when creating a new URL request via the ICefUrlRequest static factory functions. Browser objects with different request contexts will never be hosted in the same render process. Browser objects with the same request context may or may not be hosted in the same render process depending on the process model. Browser objects created indirectly via the JavaScript window.open function or targeted links will share the same render process and the same request context as the source browser. When running in single-process mode there is only a single render process (the main process) and so all browsers created in single-process mode will share the same request context. This will be the first request context passed into a ICefBrowserHost static factory function and all other request context objects will be ignored. </p>
+ A request context provides request handling for a set of related browser or URL request objects. A request context can be specified when creating a new browser via the ICefBrowserHost static factory functions or when creating a new URL request via the ICefUrlRequest static factory functions. Browser objects with different request contexts will never be hosted in the same render process. Browser objects with the same request context may or may not be hosted in the same render process depending on the process model. Browser objects created indirectly via the JavaScript window.open function or targeted links will share the same render process and the same request context as the source browser. When running in single-process mode there is only a single render process (the main process) and so all browsers created in single-process mode will share the same request context. This will be the first request context passed into a ICefBrowserHost static factory function and all other request context objects will be ignored.
+
+<p>NOTE: This struct is allocated DLL-side. </p>
 <p>
 
 
@@ -116,6 +118,10 @@
 <tr class="list2">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
 <td class="itemcode"><code><strong><a href="uCEFTypes.TCefRequestContext.html#get_chrome_color_scheme_variant">get_chrome_color_scheme_variant</a></strong>: function(self: <a href="uCEFTypes.html#PCefRequestContext">PCefRequestContext</a>): <a href="uCEFTypes.html#TCefColorVariant">TCefColorVariant</a>; stdcall;</code></td>
+</tr>
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><code><strong><a href="uCEFTypes.TCefRequestContext.html#add_setting_observer">add_setting_observer</a></strong>: function(self: <a href="uCEFTypes.html#PCefRequestContext">PCefRequestContext</a>; observer: <a href="uCEFTypes.html#PCefSettingObserver">PCefSettingObserver</a>): <a href="uCEFTypes.html#PCefRegistration">PCefRegistration</a>; stdcall;</code></td>
 </tr>
 </table>
 <h2 class="description">Description</h2>
@@ -292,6 +298,14 @@
 <tr class="list">
 <td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
 <td class="itemcode"><span id="get_chrome_color_scheme_variant"></span><code><strong>get_chrome_color_scheme_variant</strong>: function(self: <a href="uCEFTypes.html#PCefRequestContext">PCefRequestContext</a>): <a href="uCEFTypes.html#TCefColorVariant">TCefColorVariant</a>; stdcall;</code></td>
+</tr>
+<tr><td colspan="2">
+<p class="nodescription">This item has no description.</p></td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="visibility"><a href="legend.html"><img  src="public.gif" alt="Public" title="Public"></a></td>
+<td class="itemcode"><span id="add_setting_observer"></span><code><strong>add_setting_observer</strong>: function(self: <a href="uCEFTypes.html#PCefRequestContext">PCefRequestContext</a>; observer: <a href="uCEFTypes.html#PCefSettingObserver">PCefSettingObserver</a>): <a href="uCEFTypes.html#PCefRegistration">PCefRegistration</a>; stdcall;</code></td>
 </tr>
 <tr><td colspan="2">
 <p class="nodescription">This item has no description.</p></td></tr>

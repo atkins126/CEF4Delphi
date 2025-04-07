@@ -31,7 +31,7 @@
 <td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnLoadingStateChange">TOnLoadingStateChange</a></strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; isLoading, canGoBack, canGoForward: Boolean) of object;</code></td>
 </tr>
 <tr class="list2">
-<td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnTakeFocus">TOnTakeFocus</a></strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; next: Boolean) of object;</code></td>
+<td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnTakeFocus">TOnTakeFocus</a></strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; next_: Boolean) of object;</code></td>
 </tr>
 <tr class="list">
 <td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnSetFocus">TOnSetFocus</a></strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; source: <a href="uCEFTypes.html#TCefFocusSource">TCefFocusSource</a>; out Result: Boolean) of object;</code></td>
@@ -373,6 +373,12 @@
 <td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnDismissPermissionPromptEvent">TOnDismissPermissionPromptEvent</a></strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; prompt_id: uint64; result: <a href="uCEFTypes.html#TCefPermissionRequestResult">TCefPermissionRequestResult</a>) of object;</code></td>
 </tr>
 <tr class="list2">
+<td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnPreferenceChangedEvent">TOnPreferenceChangedEvent</a></strong> = procedure(Sender: TObject; const name_: <a href="uCEFTypes.html#ustring">ustring</a>) of object;</code></td>
+</tr>
+<tr class="list">
+<td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnSettingChangedEvent">TOnSettingChangedEvent</a></strong> = procedure(Sender: TObject; const requesting_url, top_level_url : <a href="uCEFTypes.html#ustring">ustring</a>; content_type: <a href="uCEFTypes.html#TCefContentSettingTypes">TCefContentSettingTypes</a>) of object;</code></td>
+</tr>
+<tr class="list2">
 <td class="itemcode"><code><strong><a href="uCEFChromiumEvents.html#TOnTextResultAvailableEvent">TOnTextResultAvailableEvent</a></strong> = procedure(Sender: TObject; const aText : <a href="uCEFTypes.html#ustring">ustring</a>) of object;</code></td>
 </tr>
 <tr class="list">
@@ -461,7 +467,7 @@ ICefLoadHandler</p>
 </table>
 <table class="detail wide_list">
 <tr class="list">
-<td class="itemcode"><span id="TOnTakeFocus"></span><code><strong>TOnTakeFocus</strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; next: Boolean) of object;</code></td>
+<td class="itemcode"><span id="TOnTakeFocus"></span><code><strong>TOnTakeFocus</strong> = procedure(Sender: TObject; const browser: <a href="uCEFInterfaces.ICefBrowser.html">ICefBrowser</a>; next_: Boolean) of object;</code></td>
 </tr>
 <tr><td colspan="1">
 <p>
@@ -1300,6 +1306,24 @@ ICefPermissionHandler</p>
 </tr>
 <tr><td colspan="1">
 <p class="nodescription">This item has no description.</p></td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TOnPreferenceChangedEvent"></span><code><strong>TOnPreferenceChangedEvent</strong> = procedure(Sender: TObject; const name_: <a href="uCEFTypes.html#ustring">ustring</a>) of object;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+ICefPreferenceObserver</p>
+</td></tr>
+</table>
+<table class="detail wide_list">
+<tr class="list">
+<td class="itemcode"><span id="TOnSettingChangedEvent"></span><code><strong>TOnSettingChangedEvent</strong> = procedure(Sender: TObject; const requesting_url, top_level_url : <a href="uCEFTypes.html#ustring">ustring</a>; content_type: <a href="uCEFTypes.html#TCefContentSettingTypes">TCefContentSettingTypes</a>) of object;</code></td>
+</tr>
+<tr><td colspan="1">
+<p>
+ICefSettingObserver</p>
+</td></tr>
 </table>
 <table class="detail wide_list">
 <tr class="list">

@@ -66,11 +66,12 @@ uses
   uCEFBrowserWindow, uCEFOsrBrowserWindow, uCEFTimerWorkScheduler, 
   uCEFFrameHandler, uCEFOverlayController, uCEFFileDialogInfo, uCEFArgCopy, 
   uCEFCommandHandler, uCEFLinuxEventPipe, uCEFPermissionHandler, 
-  uCEFRunQuickMenuCallback, uCEFMediaAccessHandler, uCEFMediaAccessCallback, 
+  uCEFRunQuickMenuCallback, uCEFMediaAccessCallback, 
   uCEFPermissionPromptCallback, uCEFSharedProcessMessageBuilder, 
   uCEFSharedMemoryRegion, uCEFPreferenceManager, uCEFPreferenceRegistrar, 
   uCEFApplicationEvents, uCEFBrowserBitmap, uCEFComponentIdList, 
-  uCEFWindowInfoWrapper, uCEFTaskManager, LazarusPackageIntf;
+  uCEFWindowInfoWrapper, uCEFTaskManager, uCEFPreferenceObserver, 
+  uCEFSettingObserver, LazarusPackageIntf;
 
 implementation
 

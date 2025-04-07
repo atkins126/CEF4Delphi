@@ -30,7 +30,7 @@ type
   TOnLoadingStateChange           = procedure(Sender: TObject; const browser: ICefBrowser; isLoading, canGoBack, canGoForward: Boolean) of object;
 
   // ICefFocusHandler
-  TOnTakeFocus                    = procedure(Sender: TObject; const browser: ICefBrowser; next: Boolean) of object;
+  TOnTakeFocus                    = procedure(Sender: TObject; const browser: ICefBrowser; next_: Boolean) of object;
   TOnSetFocus                     = procedure(Sender: TObject; const browser: ICefBrowser; source: TCefFocusSource; out Result: Boolean) of object;
   TOnGotFocus                     = procedure(Sender: TObject; const browser: ICefBrowser) of object;
 
@@ -187,6 +187,12 @@ type
   TOnRequestMediaAccessPermissionEvent = procedure(Sender: TObject; const browser: ICefBrowser; const frame: ICefFrame; const requesting_origin: ustring; requested_permissions: cardinal; const callback: ICefMediaAccessCallback; var aResult: boolean) of object;
   TOnShowPermissionPromptEvent         = procedure(Sender: TObject; const browser: ICefBrowser; prompt_id: uint64; const requesting_origin: ustring; requested_permissions: cardinal; const callback: ICefPermissionPromptCallback; var aResult: boolean) of object;
   TOnDismissPermissionPromptEvent      = procedure(Sender: TObject; const browser: ICefBrowser; prompt_id: uint64; result: TCefPermissionRequestResult) of object;
+
+  // ICefPreferenceObserver
+  TOnPreferenceChangedEvent            = procedure(Sender: TObject; const name_: ustring) of object;
+
+  // ICefSettingObserver
+  TOnSettingChangedEvent               = procedure(Sender: TObject; const requesting_url, top_level_url : ustring; content_type: TCefContentSettingTypes) of object;
 
   // Custom
   TOnTextResultAvailableEvent              = procedure(Sender: TObject; const aText : ustring) of object;

@@ -30,7 +30,8 @@ uses
   {$IFDEF MSWINDOWS}uCEFDragAndDropMgr,{$ENDIF}
   {$IFDEF LINUX}uCEFLinuxTypes, uCEFLinuxFunctions,{$ENDIF}
   uCEFChromiumOptions, uCEFChromiumFontOptions, uCEFPDFPrintOptions,
-  uCEFBrowserViewComponent, uCEFWindowInfoWrapper;
+  uCEFBrowserViewComponent, uCEFWindowInfoWrapper, uCEFPreferenceObserver,
+  uCEFSettingObserver;
 
 type
   TBrowserInfoList = class;
@@ -55,6 +56,10 @@ type
       FMediaObserverReg         : ICefRegistration;
       FDevToolsMsgObserver      : ICefDevToolsMessageObserver;
       FDevToolsMsgObserverReg   : ICefRegistration;
+      FSettingObserver          : ICefSettingObserver;
+      FSettingObserverReg       : ICefRegistration;
+      FPreferenceInfoList       : TPreferenceInfoList;
+      FPreferenceInfoCS         : TCriticalSection;
       FDefaultUrl               : ustring;
       FOptions                  : TChromiumOptions;
       FFontOptions              : TChromiumFontOptions;
@@ -297,11 +302,16 @@ type
       FOnIsChromePageActionIconVisible    : TOnIsChromePageActionIconVisibleEvent;
       FOnIsChromeToolbarButtonVisible     : TOnIsChromeToolbarButtonVisibleEvent;
 
-
       // ICefPermissionHandler
       FOnRequestMediaAccessPermission     : TOnRequestMediaAccessPermissionEvent;
       FOnShowPermissionPrompt             : TOnShowPermissionPromptEvent;
       FOnDismissPermissionPrompt          : TOnDismissPermissionPromptEvent;
+
+      // ICefPreferenceObserver
+      FOnPreferenceChanged                : TOnPreferenceChangedEvent;
+
+      // ICefSettingObserver
+      FOnSettingChanged                   : TOnSettingChangedEvent;
 
       // Custom
       FOnTextResultAvailable              : TOnTextResultAvailableEvent;
@@ -437,11 +447,15 @@ type
       procedure DestroyResourceRequestHandler;
       procedure DestroyMediaObserver;
       procedure DestroyDevToolsMsgObserver;
+      procedure DestroySettingObserver;
+      procedure DestroyPreferenceObserver;
       procedure DestroyAllHandlersAndObservers;
 
       procedure CreateResourceRequestHandler; virtual;
       procedure CreateMediaObserver; virtual;
       procedure CreateDevToolsMsgObserver; virtual;
+      procedure CreateSettingObserver; virtual;
+      procedure CreatePreferenceObserver; virtual;
       procedure CreateRequestContextHandler; virtual;
       procedure CreateOptionsClasses; virtual;
       procedure CreateSyncObjects; virtual;
@@ -666,6 +680,12 @@ type
       function  doOnShowPermissionPrompt(const browser: ICefBrowser; prompt_id: uint64; const requesting_origin: ustring; requested_permissions: cardinal; const callback: ICefPermissionPromptCallback): boolean;
       procedure doOnDismissPermissionPrompt(const browser: ICefBrowser; prompt_id: uint64; result: TCefPermissionRequestResult);
 
+      // ICefPreferenceObserver
+      procedure doOnPreferenceChanged(const name_: ustring);
+
+      // ICefSettingObserver
+      procedure doOnSettingChanged(const requesting_url, top_level_url : ustring; content_type: TCefContentSettingTypes);
+
       // Custom
       procedure GetSettings(var aSettings : TCefBrowserSettings);
       procedure doCookiesDeleted(numDeleted : integer); virtual;
@@ -698,10 +718,12 @@ type
       procedure doToggleAudioMuted; virtual;
       procedure doEnableFocus; virtual;
       function  doTryCloseBrowser : boolean; virtual;
+      procedure doAddPreferenceObserver(const name_ : ustring); virtual;
 
       function  MustCreateAudioHandler : boolean; virtual;
       function  MustCreateCommandHandler : boolean; virtual;
       function  MustCreateDevToolsMessageObserver : boolean; virtual;
+      function  MustCreateSettingObserver : boolean; virtual;
       function  MustCreateLoadHandler : boolean; virtual;
       function  MustCreateFocusHandler : boolean; virtual;
       function  MustCreateContextMenuHandler : boolean; virtual;
@@ -1117,6 +1139,25 @@ type
       /// </summary>
       procedure   ToggleAudioMuted;
       /// <summary>
+      /// Add an observer for preference changes. |name| is the name of the
+      /// preference to observe. If |name| is NULL then all preferences will be
+      /// observed. Observing all preferences has performance consequences and is
+      /// not recommended outside of testing scenarios. The observer will remain
+      /// registered until the returned Registration object is destroyed. This
+      /// function must be called on the browser process UI thread.
+      /// </summary>
+      /// <remarks>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_preference_capi.h">CEF source file: /include/capi/cef_preference_capi.h (cef_preference_manager_t)</see></para>
+      /// </remarks>
+      procedure   AddPreferenceObserver(const name_: ustring);
+      /// <summary>
+      /// Remove an observer for preference changes.
+      /// </summary>
+      /// <remarks>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_preference_capi.h">CEF source file: /include/capi/cef_preference_capi.h (cef_preference_manager_t)</see></para>
+      /// </remarks>
+      procedure   RemovePreferenceObserver(const name_ : ustring);
+      /// <summary>
       /// Used to delete cookies immediately or asynchronously. If aDeleteImmediately is false TChromiumCore.DeleteCookies triggers
       /// the TChromiumCore.OnCookiesDeleted event when the cookies are deleted.
       /// </summary>
@@ -1217,6 +1258,15 @@ type
       /// documentation for additional usage information.
       /// </summary>
       function    AddDevToolsMessageObserver(const observer: ICefDevToolsMessageObserver): ICefRegistration;
+      /// <summary>
+      /// Add an observer for content and website setting changes. The observer will
+      /// remain registered until the returned Registration object is destroyed.
+      /// This function must be called on the browser process UI thread.
+      /// </summary>
+      /// <remarks>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_request_context_capi.h">CEF source file: /include/capi/cef_request_context_capi.h (cef_request_context_t)</see></para>
+      /// </remarks>
+      function    AddSettingObserver(const observer: ICefSettingObserver): ICefRegistration;
       /// <summary>
       /// <para>Search for |searchText|. |forward| indicates whether to search forward or
       /// backward within the page. |matchCase| indicates whether the search should
@@ -1371,9 +1421,11 @@ type
       /// </summary>
       procedure ExitFullscreen(will_cause_resize: boolean);
       /// <summary>
-      /// Returns true (1) if a Chrome command is supported and enabled. Values for
-      /// |command_id| can be found in the cef_command_ids.h file. This function can
-      /// only be called on the UI thread. Only used with Chrome style.
+      /// Returns true (1) if a Chrome command is supported and enabled. Use the
+      /// cef_id_for_command_id_name() function for version-safe mapping of command
+      /// IDC names from cef_command_ids.h to version-specific numerical
+      /// |command_id| values. This function can only be called on the UI thread.
+      /// Only used with Chrome style.
       /// </summary>
       /// <remarks>
       /// <para><see cref="uCEFConstants">See the IDC_* constants in uCEFConstants.pas for all the |command_id| values.</see></para>
@@ -1381,9 +1433,11 @@ type
       /// </remarks>
       function CanExecuteChromeCommand(command_id: integer): boolean;
       /// <summary>
-      /// Execute a Chrome command. Values for |command_id| can be found in the
-      /// cef_command_ids.h file. |disposition| provides information about the
-      /// intended command target. Only used with Chrome style.
+      /// Returns true (1) if a Chrome command is supported and enabled. Use the
+      /// cef_id_for_command_id_name() function for version-safe mapping of command
+      /// IDC names from cef_command_ids.h to version-specific numerical
+      /// |command_id| values. This function can only be called on the UI thread.
+      /// Only used with Chrome style.
       /// </summary>
       /// <remarks>
       /// <para><see cref="uCEFConstants">See the IDC_* constants in uCEFConstants.pas for all the |command_id| values.</see></para>
@@ -3847,11 +3901,13 @@ type
       property OnMainFrameChanged                     : TOnMainFrameChanged               read FOnMainFrameChanged                     write FOnMainFrameChanged;
       /// <summary>
       /// Called to execute a Chrome command triggered via menu selection or
-      /// keyboard shortcut. Values for |command_id| can be found in the
-      /// cef_command_ids.h file. |disposition| provides information about the
-      /// intended command target. Return true (1) if the command was handled or
-      /// false (0) for the default implementation. For context menu commands this
-      /// will be called after ICefContextMenuHandler.OnContextMenuCommand.
+      /// keyboard shortcut. Use the cef_id_for_command_id_name() function for
+      /// version-safe mapping of command IDC names from cef_command_ids.h to
+      /// version-specific numerical |command_id| values. |disposition| provides
+      /// information about the intended command target. Return true (1) if the
+      /// command was handled or false (0) for the default implementation. For
+      /// context menu commands this will be called after
+      /// ICefContextMenuHandler.OnContextMenuCommand.
       /// </summary>
       /// <remarks>
       /// <para>Only used with Chrome style.</para>
@@ -3860,9 +3916,11 @@ type
       /// </remarks>
       property OnChromeCommand                        : TOnChromeCommandEvent                 read FOnChromeCommand                    write FOnChromeCommand;
       /// <summary>
-      /// Called to check if a Chrome app menu item should be visible. Values for
-      /// |command_id| can be found in the cef_command_ids.h file. Only called for
-      /// menu items that would be visible by default.
+      /// Called to check if a Chrome app menu item should be visible. Use the
+      /// cef_id_for_command_id_name() function for version-safe mapping of command
+      /// IDC names from cef_command_ids.h to version-specific numerical
+      /// |command_id| values. Only called for menu items that would be visible by
+      /// default.
       /// </summary>
       /// <remarks>
       /// <para>Only used with Chrome style.</para>
@@ -3871,9 +3929,11 @@ type
       /// </remarks>
       property OnIsChromeAppMenuItemVisible           : TOnIsChromeAppMenuItemVisibleEvent    read FOnIsChromeAppMenuItemVisible       write FOnIsChromeAppMenuItemVisible;
       /// <summary>
-      /// Called to check if a Chrome app menu item should be enabled. Values for
-      /// |command_id| can be found in the cef_command_ids.h file. Only called for
-      /// menu items that would be enabled by default.
+      /// Called to check if a Chrome app menu item should be enabled. Use the
+      /// cef_id_for_command_id_name() function for version-safe mapping of command
+      /// IDC names from cef_command_ids.h to version-specific numerical
+      /// |command_id| values. Only called for menu items that would be enabled by
+      /// default.
       /// </summary>
       /// <remarks>
       /// <para>Only used with Chrome style.</para>
@@ -3951,6 +4011,25 @@ type
       /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_permission_handler_capi.h">CEF source file: /include/capi/cef_permission_handler_capi.h (cef_permission_handler_t)</see></para>
       /// </remarks>
       property OnDismissPermissionPrompt              : TOnDismissPermissionPromptEvent      read FOnDismissPermissionPrompt           write FOnDismissPermissionPrompt;
+      /// <summary>
+      /// Called when a preference has changed. The new value can be retrieved using
+      /// ICefRequestContext.GetPreference.
+      /// </summary>
+      /// <remarks>
+      /// <para>This event will be called on the browser process CEF UI thread.</para>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_preference_capi.h">CEF source file: /include/capi/cef_preference_capi.h (cef_preference_observer_t)</see></para>
+      /// </remarks>
+      property OnPreferenceChanged                    : TOnPreferenceChangedEvent            read FOnPreferenceChanged                 write FOnPreferenceChanged;
+      /// <summary>
+      /// Called when a content or website setting has changed. The new value can be
+      /// retrieved using ICefRequestContext.GetContentSetting or
+      /// ICefRequestContext.GetWebsiteSetting.
+      /// </summary>
+      /// <remarks>
+      /// <para>This event will be called on the browser process CEF UI thread.</para>
+      /// <para><see href="https://bitbucket.org/chromiumembedded/cef/src/master/include/capi/cef_preference_capi.h">CEF source file: /include/capi/cef_preference_capi.h (cef_setting_observer_t)</see></para>
+      /// </remarks>
+      property OnSettingChanged                      : TOnSettingChangedEvent                read FOnSettingChanged                    write FOnSettingChanged;
   end;
 
   TBrowserInfo = class
@@ -4065,6 +4144,10 @@ begin
   FMediaObserverReg        := nil;
   FDevToolsMsgObserver     := nil;
   FDevToolsMsgObserverReg  := nil;
+  FSettingObserver         := nil;
+  FSettingObserverReg      := nil;
+  FPreferenceInfoList      := nil;
+  FPreferenceInfoCS        := nil;
   FOptions                 := nil;
   FFontOptions             := nil;
   FDefaultEncoding         := '';
@@ -4178,13 +4261,14 @@ begin
 
       DestroyAllBrowsers;
 
-      if (FWindowInfo      <> nil) then FreeAndNil(FWindowInfo);
-      if (FDevWindowInfo   <> nil) then FreeAndNil(FDevWindowInfo);
-      if (FFontOptions     <> nil) then FreeAndNil(FFontOptions);
-      if (FOptions         <> nil) then FreeAndNil(FOptions);
-      if (FPDFPrintOptions <> nil) then FreeAndNil(FPDFPrintOptions);
-      if (FZoomStepCS      <> nil) then FreeAndNil(FZoomStepCS);
-      if (FBrowsersCS      <> nil) then FreeAndNil(FBrowsersCS);
+      if (FWindowInfo        <> nil) then FreeAndNil(FWindowInfo);
+      if (FDevWindowInfo     <> nil) then FreeAndNil(FDevWindowInfo);
+      if (FFontOptions       <> nil) then FreeAndNil(FFontOptions);
+      if (FOptions           <> nil) then FreeAndNil(FOptions);
+      if (FPDFPrintOptions   <> nil) then FreeAndNil(FPDFPrintOptions);
+      if (FZoomStepCS        <> nil) then FreeAndNil(FZoomStepCS);
+      if (FBrowsersCS        <> nil) then FreeAndNil(FBrowsersCS);
+      if (FPreferenceInfoCS  <> nil) then FreeAndNil(FPreferenceInfoCS);
     except
       on e : exception do
         if CustomExceptionHandler('TChromiumCore.Destroy', e) then raise;
@@ -4381,8 +4465,22 @@ begin
   FDevToolsMsgObserver    := nil;
 end;
 
+procedure TChromiumCore.DestroySettingObserver;
+begin
+  FSettingObserverReg := nil;
+  FSettingObserver    := nil;
+end;
+
+procedure TChromiumCore.DestroyPreferenceObserver;
+begin
+  if (FPreferenceInfoList <> nil) then
+    FreeAndNil(FPreferenceInfoList);
+end;
+
 procedure TChromiumCore.DestroyAllHandlersAndObservers;
 begin
+  DestroySettingObserver;
+  DestroyPreferenceObserver;
   DestroyDevToolsMsgObserver;
   DestroyMediaObserver;
   DestroyResourceRequestHandler;
@@ -4402,6 +4500,19 @@ begin
   if MustCreateDevToolsMessageObserver and
      (FDevToolsMsgObserver = nil) then
     FDevToolsMsgObserver := TCustomDevToolsMessageObserver.Create(self);
+end;
+
+procedure TChromiumCore.CreateSettingObserver;
+begin
+  if MustCreateSettingObserver and
+     (FSettingObserver = nil) then
+    FSettingObserver := TCustomSettingObserver.Create(self);
+end;
+
+procedure TChromiumCore.CreatePreferenceObserver;
+begin
+  if (FPreferenceInfoList = nil) then
+    FPreferenceInfoList := TPreferenceInfoList.Create;
 end;
 
 procedure TChromiumCore.CreateResourceRequestHandler;
@@ -4425,8 +4536,9 @@ procedure TChromiumCore.CreateSyncObjects;
 begin
   if (Owner = nil) or not(csDesigning in ComponentState) then
     begin
-      FZoomStepCS := TCriticalSection.Create;
-      FBrowsersCS := TCriticalSection.Create;
+      FZoomStepCS       := TCriticalSection.Create;
+      FBrowsersCS       := TCriticalSection.Create;
+      FPreferenceInfoCS := TCriticalSection.Create;
     end;
 end;
 
@@ -4501,6 +4613,8 @@ begin
       CreateResourceRequestHandler;
       CreateMediaObserver;
       CreateDevToolsMsgObserver;
+      CreatePreferenceObserver;
+      CreateSettingObserver;
 
       aClient := FHandler;
       Result  := True;
@@ -4679,6 +4793,12 @@ begin
   FOnShowPermissionPrompt             := nil;
   FOnDismissPermissionPrompt          := nil;
 
+  // ICefPreferenceObserver
+  FOnPreferenceChanged                := nil;
+
+  // ICefSettingObserver
+  FOnSettingChanged                   := nil;
+
   // Custom
   FOnTextResultAvailable              := nil;
   FOnPdfPrintFinished                 := nil;
@@ -4749,6 +4869,8 @@ begin
           CreateResourceRequestHandler;
           CreateMediaObserver;
           CreateDevToolsMsgObserver;
+          CreatePreferenceObserver;
+          CreateSettingObserver;
 
           if (aContext = nil) then
             TempOldContext := TCefRequestContextRef.Global()
@@ -4802,6 +4924,8 @@ begin
           CreateResourceRequestHandler;
           CreateMediaObserver;
           CreateDevToolsMsgObserver;
+          CreatePreferenceObserver;
+          CreateSettingObserver;
 
           if (aContext = nil) then
             TempOldContext := TCefRequestContextRef.Global()
@@ -5096,6 +5220,7 @@ var
 begin
   if Initialized and (FPDFPrintOptions <> nil) then
     begin
+      TempSettings.size := SizeOf(TCefPdfPrintSettings);
       FPDFPrintOptions.CopyToSettings(TempSettings);
       TempCallback := TCefCustomPDFPrintCallBack.Create(self);
       Browser.Host.PrintToPdf(aFilePath, @TempSettings, TempCallback);
@@ -6916,6 +7041,33 @@ begin
       end;
 end;
 
+procedure TChromiumCore.AddPreferenceObserver(const name_: ustring);
+var
+  TempTask : ICefTask;
+begin
+  if CefCurrentlyOn(TID_UI) then
+    doAddPreferenceObserver(name_)
+   else
+    if Initialized then
+      try
+        TempTask := TCefAddPreferenceObserverTask.Create(self, name_);
+        CefPostTask(TID_UI, TempTask);
+      finally
+        TempTask := nil;
+      end;
+end;
+
+procedure TChromiumCore.RemovePreferenceObserver(const name_ : ustring);
+begin
+  if assigned(FPreferenceInfoCS) then
+    try
+      FPreferenceInfoCS.Acquire;
+      FPreferenceInfoList.RemovePreference(name_);
+    finally
+      FPreferenceInfoCS.Release;
+    end;
+end;
+
 function TChromiumCore.GetRequestContext : ICefRequestContext;
 begin
   if Initialized then
@@ -7888,6 +8040,26 @@ begin
   FTryingToCloseBrowser := False;
 end;
 
+procedure TChromiumCore.doAddPreferenceObserver(const name_ : ustring);
+var
+  TempContext : ICefRequestContext;
+  i : integer;
+begin
+  if assigned(FPreferenceInfoCS) and Initialized then
+    try
+      FPreferenceInfoCS.Acquire;
+      TempContext := Browser.Host.RequestContext;
+
+      if (TempContext <> nil) and not(FPreferenceInfoList.HasPreference(name_)) then
+        begin
+          i := FPreferenceInfoList.AddPreference(name_, self);
+          TempContext.AddPreferenceObserver(name, TPreferenceInfo(FPreferenceInfoList[i]).Observer);
+        end;
+    finally
+      FPreferenceInfoCS.Release;
+    end;
+end;
+
 procedure TChromiumCore.doEnableFocus;
 begin
   FCanFocus := True;
@@ -8098,6 +8270,11 @@ begin
             assigned(FOnDevToolsAgentDetached);
 end;
 
+function TChromiumCore.MustCreateSettingObserver : boolean;
+begin
+  Result := assigned(FOnSettingChanged);
+end;
+
 function TChromiumCore.MustCreatePrintHandler : boolean;
 begin
   Result := assigned(FOnPrintStart)    or
@@ -8283,6 +8460,21 @@ begin
     Result := Browser.Host.AddDevToolsMessageObserver(observer)
    else
     Result := nil;
+end;
+
+function TChromiumCore.AddSettingObserver(const observer: ICefSettingObserver): ICefRegistration;
+var
+  TempContext : ICefRequestContext;
+begin
+  Result := nil;
+
+  if Initialized then
+    begin
+      TempContext := Browser.Host.RequestContext;
+
+      if (TempContext <> nil) then
+        Result := TempContext.AddSettingObserver(observer);
+    end;
 end;
 
 {$IFDEF MSWINDOWS}
@@ -8497,6 +8689,9 @@ begin
 
   if (FDevToolsMsgObserver <> nil) and (FDevToolsMsgObserverReg = nil) then
     FDevToolsMsgObserverReg := AddDevToolsMessageObserver(FDevToolsMsgObserver);
+
+  if (FSettingObserver <> nil) and (FSettingObserverReg = nil) then
+    FSettingObserverReg := AddSettingObserver(FSettingObserver);
 
   if assigned(FOnAfterCreated) then
     FOnAfterCreated(Self, browser);
@@ -9132,6 +9327,18 @@ begin
     FOnDismissPermissionPrompt(self, browser, prompt_id, result);
 end;
 
+procedure TChromiumCore.doOnPreferenceChanged(const name_: ustring);
+begin
+  if assigned(FOnPreferenceChanged) then
+    FOnPreferenceChanged(self, name_);
+end;
+
+procedure TChromiumCore.doOnSettingChanged(const requesting_url, top_level_url : ustring; content_type: TCefContentSettingTypes);
+begin
+  if assigned(FOnSettingChanged) then
+    FOnSettingChanged(self, requesting_url, top_level_url, content_type);
+end;
+
 procedure TChromiumCore.doOnFullScreenModeChange(const browser    : ICefBrowser;
                                                        fullscreen : Boolean);
 begin
@@ -9213,7 +9420,10 @@ begin
   Result := False;
 
   if assigned(FOnGetScreenInfo) then
-    FOnGetScreenInfo(Self, browser, screenInfo, Result);
+    begin
+      screenInfo.size := SizeOf(screenInfo);
+      FOnGetScreenInfo(Self, browser, screenInfo, Result);
+    end;
 end;
 
 function TChromiumCore.doOnGetScreenPoint(const browser: ICefBrowser; viewX, viewY: Integer; var screenX, screenY: Integer): Boolean;
@@ -9716,7 +9926,12 @@ end;
 procedure TChromiumCore.SendKeyEvent(const event: PCefKeyEvent);
 begin
   if Initialized then
-    Browser.Host.SendKeyEvent(event);
+    begin
+      if assigned(event) then
+        event^.size := SizeOf(TCefKeyEvent);
+
+      Browser.Host.SendKeyEvent(event);
+    end;
 end;
 
 procedure TChromiumCore.SendMouseClickEvent(const event      : PCefMouseEvent;
